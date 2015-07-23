@@ -1,0 +1,1327 @@
+#!/bin/sh
+# Part of raspi-config http://github.com/asb/raspi-config
+#
+# See LICENSE file for copyright and license details
+
+INTERACTIVE=True
+ASK_TO_REBOOT=0
+
+do_info() {
+  whiptail --msgbox "\
+This tool provides a straight-forward way of doing initial
+configuration of the Raspberry Pi. Although it can be run
+at any time, some of the options may have difficulties if
+you have heavily customised your installation.
+This version is modified to work with ArchLinuxArm\
+" 20 70 1
+}
+
+do_expand_rootfs() {
+  # Get the starting offset of the root partition
+  PART_START=$(parted /dev/mmcblk0 -ms unit s p | grep "^2" | cut -f 2 -d:)
+  [ "$PART_START" ] || return 1
+  # Return value will likely be error for fdisk as it fails to reload the
+  # partition table because the root fs is mounted
+  fdisk /dev/mmcblk0 <<EOF
+p
+d
+2
+n
+p
+2
+$PART_START
+
+p
+w
+EOF
+  ASK_TO_REBOOT=1
+
+  # now set up an init.d script
+cat <<\EOF > /etc/systemd/system/resize2fsonce.service &&
+[Unit]
+Description=Resize the root filesystem to fill partition
+
+[Service]
+Type=oneshot
+RemainAfterExit=no
+ExecStart=/sbin/resize2fs /dev/mmcblk0p2
+ExecStart=/usr/bin/systemctl disable resize2fsonce.service
+
+[Install]
+WantedBy=multi-user.target
+
+EOF
+  /usr/bin/systemctl reenable resize2fsonce.service &&
+  if [ "$INTERACTIVE" = True ]; then
+    whiptail --msgbox "Root partition has been resized.\nThe filesystem will be enlarged upon the next reboot" 20 60 2
+  fi
+}
+
+set_config_var() {
+  lua - "$1" "$2" "$3" <<EOF > "$3.bak"
+local key=assert(arg[1])
+local value=assert(arg[2])
+local fn=assert(arg[3])
+local file=assert(io.open(fn))
+local made_change=false
+for line in file:lines() do
+  if line:match("^#?%s*"..key.."=.*$") then
+    line=key.."="..value
+    made_change=true
+  end
+  print(line)
+end
+
+if not made_change then
+  print(key.."="..value)
+end
+EOF
+mv "$3.bak" "$3"
+}
+
+get_config_var() {
+  lua - "$1" "$2" <<EOF
+local key=assert(arg[1])
+local fn=assert(arg[2])
+local file=assert(io.open(fn))
+for line in file:lines() do
+  local val = line:match("^#?%s*"..key.."=(.*)$")
+  if (val ~= nil) then
+    print(val)
+    break
+  end
+end
+EOF
+}
+
+# $1 is 0 to disable overscan, 1 to disable it
+set_overscan() {
+  # Stop if /boot is not a mountpoint
+  if ! mountpoint -q /boot; then
+    return 1
+  fi
+
+  [ -e /boot/config.txt ] || touch /boot/config.txt
+
+  if [ "$1" -eq 0 ]; then # disable overscan
+    sed /boot/config.txt -i -e "s/^overscan_/#overscan_/"
+    set_config_var disable_overscan 1 /boot/config.txt
+  else # enable overscan
+    set_config_var disable_overscan 0 /boot/config.txt
+  fi
+}
+
+do_overscan() {
+  whiptail --yesno "What would you like to do with overscan" 20 60 2 \
+    --yes-button Disable --no-button Enable
+  RET=$?
+  if [ $RET -eq 0 ] || [ $RET -eq 1 ]; then
+    ASK_TO_REBOOT=1
+    set_overscan $RET;
+  else
+    return 1
+  fi
+}
+
+do_change_pass() {
+  whiptail --msgbox "You will now be asked to enter a new password for the pi user" 20 60 1
+  passwd pi &&
+  whiptail --msgbox "Password changed successfully for pi user" 20 60 1
+}
+
+do_change_passroot() {
+  whiptail --msgbox "You will now be asked to enter a new password for the root user" 20 60 1
+  passwd root &&
+  whiptail --msgbox "Password changed successfully for root user" 20 60 1
+}
+
+do_configure_keyboard() {
+  KBD=$(whiptail --menu "Keyboard config" 20 80 13 --cancel-button Finish --ok-button Select \
+    "am"   "Armenian"  \
+    "am -variant eastern"   "Armenian (Eastern)"  \
+    "be-latin1"   "Belgian"  \
+    "br-abnt2"   "Brazilian Portuguese"  \
+    "cf"   "Canadian-French"  \
+    "colemak"   "Colemak (US)"  \
+    "croat"   "Croatian"  \
+    "cz-lat2"   "Czech"  \
+    "dk"   "Danish"  \
+    "dvorak"   "Dvorak"  \
+    "fi-latin1"   "Finnish"  \
+    "fr-latin1"   "French"  \
+    "ge"   "Georgian"  \
+    "de-latin1"   "German"  \
+    "de-latin1-nodeadkeys"   "German (no dead keys)"  \
+    "gr"   "Greek"  \
+    "it"   "Italian"  \
+    "lt.baltic"   "Lithuanian (qwerty)"  \
+    "no-latin1"   "Norwegian"  \
+    "pl"   "Polish"  \
+    "pt-latin9"   "Portuguese"  \
+    "ro_win"   "Romanian"  \
+    "ru4"   "Russian"  \
+    "sg-latin1"   "Singapore"  \
+    "slovene"   "Slovene"  \
+    "sv-latin1"   "Swedish"  \
+    "fr_CH-latin1"   "Swiss-French"  \
+    "de_CH-latin1"   "Swiss-German"  \
+    "es"   "Spanish Spaniard"  \
+    "la-latin1"   "Spanish Latin American"  \
+    "dvorak-es"   "Spanish Dvorak"  \
+    "tr_q-latin5"   "Turkish"  \
+    "ua"   "Ukrainian"  \
+    "uk"   "United Kingdom"  \
+    "us"   "USA"  \
+    3>&1 1>&2 2>&3)
+  RET=$?
+  if [ $RET -eq 1 ]; then
+    exec raspi-config
+  elif [ $RET -eq 0 ]; then
+    /usr/bin/localectl set-keymap "$KBD"
+    whiptail --msgbox "Keyboard Changed to $KBD" 20 60 1
+  else
+    exit 1
+  fi
+}
+
+do_change_locale() {
+  LOC=$(whiptail --menu "Locale config" 20 80 13 --cancel-button Finish --ok-button Select \
+    "aa_DJ.UTF-8"  "UTF-8  "  \
+    "aa_DJ"  "ISO-8859-1  "  \
+    "aa_ER"  "UTF-8  "  \
+    "aa_ER@saaho"  "UTF-8  "  \
+    "aa_ET"  "UTF-8  "  \
+    "af_ZA.UTF-8"  "UTF-8  "  \
+    "af_ZA"  "ISO-8859-1  "  \
+    "am_ET"  "UTF-8  "  \
+    "an_ES.UTF-8"  "UTF-8  "  \
+    "an_ES"  "ISO-8859-15  "  \
+    "ar_AE.UTF-8"  "UTF-8  "  \
+    "ar_AE"  "ISO-8859-6  "  \
+    "ar_BH.UTF-8"  "UTF-8  "  \
+    "ar_BH"  "ISO-8859-6  "  \
+    "ar_DZ.UTF-8"  "UTF-8  "  \
+    "ar_DZ"  "ISO-8859-6  "  \
+    "ar_EG.UTF-8"  "UTF-8  "  \
+    "ar_EG"  "ISO-8859-6  "  \
+    "ar_IN"  "UTF-8  "  \
+    "ar_IQ.UTF-8"  "UTF-8  "  \
+    "ar_IQ"  "ISO-8859-6  "  \
+    "ar_JO.UTF-8"  "UTF-8  "  \
+    "ar_JO"  "ISO-8859-6  "  \
+    "ar_KW.UTF-8"  "UTF-8  "  \
+    "ar_KW"  "ISO-8859-6  "  \
+    "ar_LB.UTF-8"  "UTF-8  "  \
+    "ar_LB"  "ISO-8859-6  "  \
+    "ar_LY.UTF-8"  "UTF-8  "  \
+    "ar_LY"  "ISO-8859-6  "  \
+    "ar_MA.UTF-8"  "UTF-8  "  \
+    "ar_MA"  "ISO-8859-6  "  \
+    "ar_OM.UTF-8"  "UTF-8  "  \
+    "ar_OM"  "ISO-8859-6  "  \
+    "ar_QA.UTF-8"  "UTF-8  "  \
+    "ar_QA"  "ISO-8859-6  "  \
+    "ar_SA.UTF-8"  "UTF-8  "  \
+    "ar_SA"  "ISO-8859-6  "  \
+    "ar_SD.UTF-8"  "UTF-8  "  \
+    "ar_SD"  "ISO-8859-6  "  \
+    "ar_SY.UTF-8"  "UTF-8  "  \
+    "ar_SY"  "ISO-8859-6  "  \
+    "ar_TN.UTF-8"  "UTF-8  "  \
+    "ar_TN"  "ISO-8859-6  "  \
+    "ar_YE.UTF-8"  "UTF-8  "  \
+    "ar_YE"  "ISO-8859-6  "  \
+    "ayc_PE"  "UTF-8  "  \
+    "az_AZ"  "UTF-8  "  \
+    "as_IN"  "UTF-8  "  \
+    "ast_ES.UTF-8"  "UTF-8  "  \
+    "ast_ES"  "ISO-8859-15  "  \
+    "be_BY.UTF-8"  "UTF-8  "  \
+    "be_BY"  "CP1251  "  \
+    "be_BY@latin"  "UTF-8  "  \
+    "bem_ZM"  "UTF-8  "  \
+    "ber_DZ"  "UTF-8  "  \
+    "ber_MA"  "UTF-8  "  \
+    "bg_BG.UTF-8"  "UTF-8  "  \
+    "bg_BG"  "CP1251  "  \
+    "bho_IN"  "UTF-8  "  \
+    "bn_BD"  "UTF-8  "  \
+    "bn_IN"  "UTF-8  "  \
+    "bo_CN"  "UTF-8  "  \
+    "bo_IN"  "UTF-8  "  \
+    "br_FR.UTF-8"  "UTF-8  "  \
+    "br_FR"  "ISO-8859-1  "  \
+    "br_FR@euro"  "ISO-8859-15  "  \
+    "brx_IN"  "UTF-8  "  \
+    "bs_BA.UTF-8"  "UTF-8  "  \
+    "bs_BA"  "ISO-8859-2  "  \
+    "byn_ER"  "UTF-8  "  \
+    "ca_AD.UTF-8"  "UTF-8  "  \
+    "ca_AD"  "ISO-8859-15  "  \
+    "ca_ES.UTF-8"  "UTF-8  "  \
+    "ca_ES"  "ISO-8859-1  "  \
+    "ca_ES@euro"  "ISO-8859-15  "  \
+    "ca_FR.UTF-8"  "UTF-8  "  \
+    "ca_FR"  "ISO-8859-15  "  \
+    "ca_IT.UTF-8"  "UTF-8  "  \
+    "ca_IT"  "ISO-8859-15  "  \
+    "crh_UA"  "UTF-8  "  \
+    "cs_CZ.UTF-8"  "UTF-8  "  \
+    "cs_CZ"  "ISO-8859-2  "  \
+    "csb_PL"  "UTF-8  "  \
+    "cv_RU"  "UTF-8  "  \
+    "cy_GB.UTF-8"  "UTF-8  "  \
+    "cy_GB"  "ISO-8859-14  "  \
+    "da_DK.UTF-8"  "UTF-8  "  \
+    "da_DK"  "ISO-8859-1  "  \
+    "de_AT.UTF-8"  "UTF-8  "  \
+    "de_AT"  "ISO-8859-1  "  \
+    "de_AT@euro"  "ISO-8859-15  "  \
+    "de_BE.UTF-8"  "UTF-8  "  \
+    "de_BE"  "ISO-8859-1  "  \
+    "de_BE@euro"  "ISO-8859-15  "  \
+    "de_CH.UTF-8"  "UTF-8  "  \
+    "de_CH"  "ISO-8859-1  "  \
+    "de_DE.UTF-8"  "UTF-8  "  \
+    "de_DE"  "ISO-8859-1  "  \
+    "de_DE@euro"  "ISO-8859-15  "  \
+    "de_LU.UTF-8"  "UTF-8  "  \
+    "de_LU"  "ISO-8859-1  "  \
+    "de_LU@euro"  "ISO-8859-15  "  \
+    "doi_IN"  "UTF-8  "  \
+    "dv_MV"  "UTF-8  "  \
+    "dz_BT"  "UTF-8  "  \
+    "el_GR.UTF-8"  "UTF-8  "  \
+    "el_GR"  "ISO-8859-7  "  \
+    "el_CY.UTF-8"  "UTF-8  "  \
+    "el_CY"  "ISO-8859-7  "  \
+    "en_AG"  "UTF-8  "  \
+    "en_AU.UTF-8"  "UTF-8  "  \
+    "en_AU"  "ISO-8859-1  "  \
+    "en_BW.UTF-8"  "UTF-8  "  \
+    "en_BW"  "ISO-8859-1  "  \
+    "en_CA.UTF-8"  "UTF-8  "  \
+    "en_CA"  "ISO-8859-1  "  \
+    "en_DK.UTF-8"  "UTF-8  "  \
+    "en_DK"  "ISO-8859-1  "  \
+    "en_GB.UTF-8"  "UTF-8  "  \
+    "en_GB"  "ISO-8859-1  "  \
+    "en_HK.UTF-8"  "UTF-8  "  \
+    "en_HK"  "ISO-8859-1  "  \
+    "en_IE.UTF-8"  "UTF-8  "  \
+    "en_IE"  "ISO-8859-1  "  \
+    "en_IE@euro"  "ISO-8859-15  "  \
+    "en_IN"  "UTF-8  "  \
+    "en_NG"  "UTF-8  "  \
+    "en_NZ.UTF-8"  "UTF-8  "  \
+    "en_NZ"  "ISO-8859-1  "  \
+    "en_PH.UTF-8"  "UTF-8  "  \
+    "en_PH"  "ISO-8859-1  "  \
+    "en_SG.UTF-8"  "UTF-8  "  \
+    "en_SG"  "ISO-8859-1  "  \
+    "en_US.UTF-8"  "UTF-8  "  \
+    "en_US"  "ISO-8859-1  "  \
+    "en_ZA.UTF-8"  "UTF-8  "  \
+    "en_ZA"  "ISO-8859-1  "  \
+    "en_ZM"  "UTF-8  "  \
+    "en_ZW.UTF-8"  "UTF-8  "  \
+    "en_ZW"  "ISO-8859-1  "  \
+    "es_AR.UTF-8"  "UTF-8  "  \
+    "es_AR"  "ISO-8859-1  "  \
+    "es_BO.UTF-8"  "UTF-8  "  \
+    "es_BO"  "ISO-8859-1  "  \
+    "es_CL.UTF-8"  "UTF-8  "  \
+    "es_CL"  "ISO-8859-1  "  \
+    "es_CO.UTF-8"  "UTF-8  "  \
+    "es_CO"  "ISO-8859-1  "  \
+    "es_CR.UTF-8"  "UTF-8  "  \
+    "es_CR"  "ISO-8859-1  "  \
+    "es_CU"  "UTF-8  "  \
+    "es_DO.UTF-8"  "UTF-8  "  \
+    "es_DO"  "ISO-8859-1  "  \
+    "es_EC.UTF-8"  "UTF-8  "  \
+    "es_EC"  "ISO-8859-1  "  \
+    "es_ES.UTF-8"  "UTF-8  "  \
+    "es_ES"  "ISO-8859-1  "  \
+    "es_ES@euro"  "ISO-8859-15  "  \
+    "es_GT.UTF-8"  "UTF-8  "  \
+    "es_GT"  "ISO-8859-1  "  \
+    "es_HN.UTF-8"  "UTF-8  "  \
+    "es_HN"  "ISO-8859-1  "  \
+    "es_MX.UTF-8"  "UTF-8  "  \
+    "es_MX"  "ISO-8859-1  "  \
+    "es_NI.UTF-8"  "UTF-8  "  \
+    "es_NI"  "ISO-8859-1  "  \
+    "es_PA.UTF-8"  "UTF-8  "  \
+    "es_PA"  "ISO-8859-1  "  \
+    "es_PE.UTF-8"  "UTF-8  "  \
+    "es_PE"  "ISO-8859-1  "  \
+    "es_PR.UTF-8"  "UTF-8  "  \
+    "es_PR"  "ISO-8859-1  "  \
+    "es_PY.UTF-8"  "UTF-8  "  \
+    "es_PY"  "ISO-8859-1  "  \
+    "es_SV.UTF-8"  "UTF-8  "  \
+    "es_SV"  "ISO-8859-1  "  \
+    "es_US.UTF-8"  "UTF-8  "  \
+    "es_US"  "ISO-8859-1  "  \
+    "es_UY.UTF-8"  "UTF-8  "  \
+    "es_UY"  "ISO-8859-1  "  \
+    "es_VE.UTF-8"  "UTF-8  "  \
+    "es_VE"  "ISO-8859-1  "  \
+    "et_EE.UTF-8"  "UTF-8  "  \
+    "et_EE"  "ISO-8859-1  "  \
+    "et_EE.ISO-8859-15"  "ISO-8859-15  "  \
+    "eu_ES.UTF-8"  "UTF-8  "  \
+    "eu_ES"  "ISO-8859-1  "  \
+    "eu_ES@euro"  "ISO-8859-15  "  \
+    "fa_IR"  "UTF-8  "  \
+    "ff_SN"  "UTF-8  "  \
+    "fi_FI.UTF-8"  "UTF-8  "  \
+    "fi_FI"  "ISO-8859-1  "  \
+    "fi_FI@euro"  "ISO-8859-15  "  \
+    "fil_PH"  "UTF-8  "  \
+    "fo_FO.UTF-8"  "UTF-8  "  \
+    "fo_FO"  "ISO-8859-1  "  \
+    "fr_BE.UTF-8"  "UTF-8  "  \
+    "fr_BE"  "ISO-8859-1  "  \
+    "fr_BE@euro"  "ISO-8859-15  "  \
+    "fr_CA.UTF-8"  "UTF-8  "  \
+    "fr_CA"  "ISO-8859-1  "  \
+    "fr_CH.UTF-8"  "UTF-8  "  \
+    "fr_CH"  "ISO-8859-1  "  \
+    "fr_FR.UTF-8"  "UTF-8  "  \
+    "fr_FR"  "ISO-8859-1  "  \
+    "fr_FR@euro"  "ISO-8859-15  "  \
+    "fr_LU.UTF-8"  "UTF-8  "  \
+    "fr_LU"  "ISO-8859-1  "  \
+    "fr_LU@euro"  "ISO-8859-15  "  \
+    "fur_IT"  "UTF-8  "  \
+    "fy_NL"  "UTF-8  "  \
+    "fy_DE"  "UTF-8  "  \
+    "ga_IE.UTF-8"  "UTF-8  "  \
+    "ga_IE"  "ISO-8859-1  "  \
+    "ga_IE@euro"  "ISO-8859-15  "  \
+    "gd_GB.UTF-8"  "UTF-8  "  \
+    "gd_GB"  "ISO-8859-15  "  \
+    "gez_ER"  "UTF-8  "  \
+    "gez_ER@abegede"  "UTF-8  "  \
+    "gez_ET"  "UTF-8  "  \
+    "gez_ET@abegede"  "UTF-8  "  \
+    "gl_ES.UTF-8"  "UTF-8  "  \
+    "gl_ES"  "ISO-8859-1  "  \
+    "gl_ES@euro"  "ISO-8859-15  "  \
+    "gu_IN"  "UTF-8  "  \
+    "gv_GB.UTF-8"  "UTF-8  "  \
+    "gv_GB"  "ISO-8859-1  "  \
+    "ha_NG"  "UTF-8  "  \
+    "he_IL.UTF-8"  "UTF-8  "  \
+    "he_IL"  "ISO-8859-8  "  \
+    "hi_IN"  "UTF-8  "  \
+    "hne_IN"  "UTF-8  "  \
+    "hr_HR.UTF-8"  "UTF-8  "  \
+    "hr_HR"  "ISO-8859-2  "  \
+    "hsb_DE"  "ISO-8859-2  "  \
+    "hsb_DE.UTF-8"  "UTF-8  "  \
+    "ht_HT"  "UTF-8  "  \
+    "hu_HU.UTF-8"  "UTF-8  "  \
+    "hu_HU"  "ISO-8859-2  "  \
+    "hy_AM"  "UTF-8  "  \
+    "hy_AM.ARMSCII-8"  "ARMSCII-8  "  \
+    "ia_FR"  "UTF-8  "  \
+    "id_ID.UTF-8"  "UTF-8  "  \
+    "id_ID"  "ISO-8859-1  "  \
+    "ig_NG"  "UTF-8  "  \
+    "ik_CA"  "UTF-8  "  \
+    "is_IS.UTF-8"  "UTF-8  "  \
+    "is_IS"  "ISO-8859-1  "  \
+    "it_CH.UTF-8"  "UTF-8  "  \
+    "it_CH"  "ISO-8859-1  "  \
+    "it_IT.UTF-8"  "UTF-8  "  \
+    "it_IT"  "ISO-8859-1  "  \
+    "it_IT@euro"  "ISO-8859-15  "  \
+    "iu_CA"  "UTF-8  "  \
+    "iw_IL.UTF-8"  "UTF-8  "  \
+    "iw_IL"  "ISO-8859-8  "  \
+    "ja_JP.EUC-JP"  "EUC-JP  "  \
+    "ja_JP.UTF-8"  "UTF-8  "  \
+    "ka_GE.UTF-8"  "UTF-8  "  \
+    "ka_GE"  "GEORGIAN-PS  "  \
+    "kk_KZ.UTF-8"  "UTF-8  "  \
+    "kk_KZ"  "PT154  "  \
+    "kl_GL.UTF-8"  "UTF-8  "  \
+    "kl_GL"  "ISO-8859-1  "  \
+    "km_KH"  "UTF-8  "  \
+    "kn_IN"  "UTF-8  "  \
+    "ko_KR.EUC-KR"  "EUC-KR  "  \
+    "ko_KR.UTF-8"  "UTF-8  "  \
+    "kok_IN"  "UTF-8  "  \
+    "ks_IN"  "UTF-8  "  \
+    "ks_IN@devanagari"  "UTF-8  "  \
+    "ku_TR.UTF-8"  "UTF-8  "  \
+    "ku_TR"  "ISO-8859-9  "  \
+    "kw_GB.UTF-8"  "UTF-8  "  \
+    "kw_GB"  "ISO-8859-1  "  \
+    "ky_KG"  "UTF-8  "  \
+    "lb_LU"  "UTF-8  "  \
+    "lg_UG.UTF-8"  "UTF-8  "  \
+    "lg_UG"  "ISO-8859-10  "  \
+    "li_BE"  "UTF-8  "  \
+    "li_NL"  "UTF-8  "  \
+    "lij_IT"  "UTF-8  "  \
+    "lo_LA"  "UTF-8  "  \
+    "lt_LT.UTF-8"  "UTF-8  "  \
+    "lt_LT"  "ISO-8859-13  "  \
+    "lv_LV.UTF-8"  "UTF-8  "  \
+    "lv_LV"  "ISO-8859-13  "  \
+    "mag_IN"  "UTF-8  "  \
+    "mai_IN"  "UTF-8  "  \
+    "mg_MG.UTF-8"  "UTF-8  "  \
+    "mg_MG"  "ISO-8859-15  "  \
+    "mhr_RU"  "UTF-8  "  \
+    "mi_NZ.UTF-8"  "UTF-8  "  \
+    "mi_NZ"  "ISO-8859-13  "  \
+    "mk_MK.UTF-8"  "UTF-8  "  \
+    "mk_MK"  "ISO-8859-5  "  \
+    "ml_IN"  "UTF-8  "  \
+    "mn_MN"  "UTF-8  "  \
+    "mni_IN"  "UTF-8  "  \
+    "mr_IN"  "UTF-8  "  \
+    "ms_MY.UTF-8"  "UTF-8  "  \
+    "ms_MY"  "ISO-8859-1  "  \
+    "mt_MT.UTF-8"  "UTF-8  "  \
+    "mt_MT"  "ISO-8859-3  "  \
+    "my_MM"  "UTF-8  "  \
+    "nan_TW@latin"  "UTF-8  "  \
+    "nb_NO.UTF-8"  "UTF-8  "  \
+    "nb_NO"  "ISO-8859-1  "  \
+    "nds_DE"  "UTF-8  "  \
+    "nds_NL"  "UTF-8  "  \
+    "ne_NP"  "UTF-8  "  \
+    "nhn_MX"  "UTF-8  "  \
+    "niu_NU"  "UTF-8  "  \
+    "niu_NZ"  "UTF-8  "  \
+    "nl_AW"  "UTF-8  "  \
+    "nl_BE.UTF-8"  "UTF-8  "  \
+    "nl_BE"  "ISO-8859-1  "  \
+    "nl_BE@euro"  "ISO-8859-15  "  \
+    "nl_NL.UTF-8"  "UTF-8  "  \
+    "nl_NL"  "ISO-8859-1  "  \
+    "nl_NL@euro"  "ISO-8859-15  "  \
+    "nn_NO.UTF-8"  "UTF-8  "  \
+    "nn_NO"  "ISO-8859-1  "  \
+    "nr_ZA"  "UTF-8  "  \
+    "nso_ZA"  "UTF-8  "  \
+    "oc_FR.UTF-8"  "UTF-8  "  \
+    "oc_FR"  "ISO-8859-1  "  \
+    "om_ET"  "UTF-8  "  \
+    "om_KE.UTF-8"  "UTF-8  "  \
+    "om_KE"  "ISO-8859-1  "  \
+    "or_IN"  "UTF-8  "  \
+    "os_RU"  "UTF-8  "  \
+    "pa_IN"  "UTF-8  "  \
+    "pa_PK"  "UTF-8  "  \
+    "pap_AN"  "UTF-8  "  \
+    "pl_PL.UTF-8"  "UTF-8  "  \
+    "pl_PL"  "ISO-8859-2  "  \
+    "ps_AF"  "UTF-8  "  \
+    "pt_BR.UTF-8"  "UTF-8  "  \
+    "pt_BR"  "ISO-8859-1  "  \
+    "pt_PT.UTF-8"  "UTF-8  "  \
+    "pt_PT"  "ISO-8859-1  "  \
+    "pt_PT@euro"  "ISO-8859-15  "  \
+    "ro_RO.UTF-8"  "UTF-8  "  \
+    "ro_RO"  "ISO-8859-2  "  \
+    "ru_RU.KOI8-R"  "KOI8-R  "  \
+    "ru_RU.UTF-8"  "UTF-8  "  \
+    "ru_RU"  "ISO-8859-5  "  \
+    "ru_UA.UTF-8"  "UTF-8  "  \
+    "ru_UA"  "KOI8-U  "  \
+    "rw_RW"  "UTF-8  "  \
+    "sa_IN"  "UTF-8  "  \
+    "sat_IN"  "UTF-8  "  \
+    "sc_IT"  "UTF-8  "  \
+    "sd_IN"  "UTF-8  "  \
+    "sd_IN@devanagari"  "UTF-8  "  \
+    "se_NO"  "UTF-8  "  \
+    "shs_CA"  "UTF-8  "  \
+    "si_LK"  "UTF-8  "  \
+    "sid_ET"  "UTF-8  "  \
+    "sk_SK.UTF-8"  "UTF-8  "  \
+    "sk_SK"  "ISO-8859-2  "  \
+    "sl_SI.UTF-8"  "UTF-8  "  \
+    "sl_SI"  "ISO-8859-2  "  \
+    "so_DJ.UTF-8"  "UTF-8  "  \
+    "so_DJ"  "ISO-8859-1  "  \
+    "so_ET"  "UTF-8  "  \
+    "so_KE.UTF-8"  "UTF-8  "  \
+    "so_KE"  "ISO-8859-1  "  \
+    "so_SO.UTF-8"  "UTF-8  "  \
+    "so_SO"  "ISO-8859-1  "  \
+    "sq_AL.UTF-8"  "UTF-8  "  \
+    "sq_AL"  "ISO-8859-1  "  \
+    "sq_MK"  "UTF-8  "  \
+    "sr_ME"  "UTF-8  "  \
+    "sr_RS"  "UTF-8  "  \
+    "sr_RS@latin"  "UTF-8  "  \
+    "ss_ZA"  "UTF-8  "  \
+    "st_ZA.UTF-8"  "UTF-8  "  \
+    "st_ZA"  "ISO-8859-1  "  \
+    "sv_FI.UTF-8"  "UTF-8  "  \
+    "sv_FI"  "ISO-8859-1  "  \
+    "sv_FI@euro"  "ISO-8859-15  "  \
+    "sv_SE.UTF-8"  "UTF-8  "  \
+    "sv_SE"  "ISO-8859-1  "  \
+    "sw_KE"  "UTF-8  "  \
+    "sw_TZ"  "UTF-8  "  \
+    "szl_PL"  "UTF-8  "  \
+    "ta_IN"  "UTF-8  "  \
+    "ta_LK"  "UTF-8  "  \
+    "te_IN"  "UTF-8  "  \
+    "tg_TJ.UTF-8"  "UTF-8  "  \
+    "tg_TJ"  "KOI8-T  "  \
+    "th_TH.UTF-8"  "UTF-8  "  \
+    "th_TH"  "TIS-620  "  \
+    "ti_ER"  "UTF-8  "  \
+    "ti_ET"  "UTF-8  "  \
+    "tig_ER"  "UTF-8  "  \
+    "tk_TM"  "UTF-8  "  \
+    "tl_PH.UTF-8"  "UTF-8  "  \
+    "tl_PH"  "ISO-8859-1  "  \
+    "tn_ZA"  "UTF-8  "  \
+    "tr_CY.UTF-8"  "UTF-8  "  \
+    "tr_CY"  "ISO-8859-9  "  \
+    "tr_TR.UTF-8"  "UTF-8  "  \
+    "tr_TR"  "ISO-8859-9  "  \
+    "ts_ZA"  "UTF-8  "  \
+    "tt_RU"  "UTF-8  "  \
+    "tt_RU@iqtelif"  "UTF-8  "  \
+    "ug_CN"  "UTF-8  "  \
+    "uk_UA.UTF-8"  "UTF-8  "  \
+    "uk_UA"  "KOI8-U  "  \
+    "unm_US"  "UTF-8  "  \
+    "ur_IN"  "UTF-8  "  \
+    "ur_PK"  "UTF-8  "  \
+    "uz_UZ"  "ISO-8859-1  "  \
+    "uz_UZ@cyrillic"  "UTF-8  "  \
+    "ve_ZA"  "UTF-8  "  \
+    "vi_VN"  "UTF-8  "  \
+    "wa_BE"  "ISO-8859-1  "  \
+    "wa_BE@euro"  "ISO-8859-15  "  \
+    "wa_BE.UTF-8"  "UTF-8  "  \
+    "wae_CH"  "UTF-8  "  \
+    "wal_ET"  "UTF-8  "  \
+    "wo_SN"  "UTF-8  "  \
+    "xh_ZA.UTF-8"  "H"  \
+    "xh_ZA"  "ISO-8859-1  "  \
+    "yi_US.UTF-8"  "UTF-8  "  \
+    "yi_US"  "CP1255  "  \
+    "yo_NG"  "UTF-8  "  \
+    "yue_HK"  "UTF-8  "  \
+    "zh_CN.GB18030"  "GB18030  "  \
+    "zh_CN.GBK"  "GBK  "  \
+    "zh_CN.UTF-8"  "UTF-8  "  \
+    "zh_CN"  "GB2312  "  \
+    "zh_HK.UTF-8"  "UTF-8  "  \
+    "zh_HK"  "BIG5-HKSCS  "  \
+    "zh_SG.UTF-8"  "UTF-8  "  \
+    "zh_SG.GBK"  "GBK  "  \
+    "zh_SG"  "GB2312  "  \
+    "zh_TW.EUC-TW"  "EUC-TW  "  \
+    "zh_TW.UTF-8"  "UTF-8  "  \
+    "zh_TW"  "BIG5  "  \
+    "zu_ZA.UTF-8"  "UTF-8  "  \
+    "zu_ZA"  "ISO-8859-1"  \
+   3>&1 1>&2 2>&3)
+  RET=$?
+  if [ $RET -eq 1 ]; then
+    exec raspi-config
+  elif [ $RET -eq 0 ]; then
+    /usr/bin/localectl set-locale "LANG=$LOC"
+    whiptail --msgbox "Locale Changed" 20 60 1
+    sleep 5
+  else
+    exit 1
+  fi
+}
+
+do_change_timezone() {
+# Borrowed from /usr/bin/tzselect, part of glibc
+PKGVERSION="(GNU libc) "
+TZVERSION="2.17"
+REPORT_BUGS_TO="<https://github.com/archlinuxarm/PKGBUILDs/issues>"
+
+# Ask the user about the time zone, and output the resulting TZ value to stdout.
+# Interact with the user via stderr and stdin.
+
+# Contributed by Paul Eggert.
+
+# Porting notes:
+#
+# This script requires a Posix-like shell with the extension of a
+# 'select' statement.  The 'select' statement was introduced in the
+# Korn shell and is available in Bash and other shell implementations.
+# If your host lacks both Bash and the Korn shell, you can get their
+# source from one of these locations:
+#
+#	Bash <http://www.gnu.org/software/bash/bash.html>
+#	Korn Shell <http://www.kornshell.com/>
+#	Public Domain Korn Shell <http://www.cs.mun.ca/~michael/pdksh/>
+#
+# This script also uses several features of modern awk programs.
+# If your host lacks awk, or has an old awk that does not conform to Posix,
+# you can use either of the following free programs instead:
+#
+#	Gawk (GNU awk) <http://www.gnu.org/software/gawk/>
+#	mawk <http://invisible-island.net/mawk/>
+
+
+# Specify default values for environment variables if they are unset.
+: ${AWK=awk}
+: ${TZDIR=/usr/share/zoneinfo}
+
+# Check for awk Posix compliance.
+($AWK -v x=y 'BEGIN { exit 123 }') </dev/null >/dev/null 2>&1
+[ $? = 123 ] || {
+	echo >&2 "$0: Sorry, your \`$AWK' program is not Posix compatible."
+	exit 1
+}
+
+if [ "$1" = "--help" ]; then
+    cat <<EOF
+Usage: tzselect
+Select a time zone interactively.
+
+Report bugs to $REPORT_BUGS_TO.
+EOF
+    exit
+elif [ "$1" = "--version" ]; then
+    cat <<EOF
+tzselect $PKGVERSION$TZVERSION
+EOF
+    exit
+fi
+
+# Make sure the tables are readable.
+TZ_COUNTRY_TABLE=$TZDIR/iso3166.tab
+TZ_ZONE_TABLE=$TZDIR/zone.tab
+for f in $TZ_COUNTRY_TABLE $TZ_ZONE_TABLE
+do
+	<$f || {
+		echo >&2 "$0: time zone files are not set up correctly"
+		exit 1
+	}
+done
+
+newline='
+'
+IFS=$newline
+
+
+# Work around a bug in bash 1.14.7 and earlier, where $PS3 is sent to stdout.
+case $(echo 1 | (select x in x; do break; done) 2>/dev/null) in
+?*) PS3=
+esac
+
+
+# Begin the main loop.  We come back here if the user wants to retry.
+while
+
+	echo >&2 'Please identify a location' \
+		'so that time zone rules can be set correctly.'
+
+	continent=
+	country=
+	region=
+
+
+	# Ask the user for continent or ocean.
+
+	echo >&2 'Please select a continent or ocean.'
+
+	select continent in \
+	    Africa \
+	    Americas \
+	    Antarctica \
+	    'Arctic Ocean' \
+	    Asia \
+	    'Atlantic Ocean' \
+	    Australia \
+	    Europe \
+	    'Indian Ocean' \
+	    'Pacific Ocean' \
+	    'none - I want to specify the time zone using the Posix TZ format.'
+	do
+	    case $continent in
+	    '')
+		echo >&2 'Please enter a number in range.';;
+	    ?*)
+		case $continent in
+		Americas) continent=America;;
+		*' '*) continent=$(expr "$continent" : '\([^ ]*\)')
+		esac
+		break
+	    esac
+	done
+	case $continent in
+	'')
+		exit 1;;
+	none)
+		# Ask the user for a Posix TZ string.  Check that it conforms.
+		while
+			echo >&2 'Please enter the desired value' \
+				'of the TZ environment variable.'
+			echo >&2 'For example, GST-10 is a zone named GST' \
+				'that is 10 hours ahead (east) of UTC.'
+			read TZ
+			$AWK -v TZ="$TZ" 'BEGIN {
+				tzname = "[^-+,0-9][^-+,0-9][^-+,0-9]+"
+				time = "[0-2]?[0-9](:[0-5][0-9](:[0-5][0-9])?)?"
+				offset = "[-+]?" time
+				date = "(J?[0-9]+|M[0-9]+\.[0-9]+\.[0-9]+)"
+				datetime = "," date "(/" time ")?"
+				tzpattern = "^(:.*|" tzname offset "(" tzname \
+				  "(" offset ")?(" datetime datetime ")?)?)$"
+				if (TZ ~ tzpattern) exit 1
+				exit 0
+			}'
+		do
+			echo >&2 "\`$TZ' is not a conforming" \
+				'Posix time zone string.'
+		done
+		TZ_for_date=$TZ;;
+	*)
+		# Get list of names of countries in the continent or ocean.
+		countries=$($AWK -F'\t' \
+			-v continent="$continent" \
+			-v TZ_COUNTRY_TABLE="$TZ_COUNTRY_TABLE" \
+		'
+			/^#/ { next }
+			$3 ~ ("^" continent "/") {
+				if (!cc_seen[$1]++) cc_list[++ccs] = $1
+			}
+			END {
+				while (getline <TZ_COUNTRY_TABLE) {
+					if ($0 !~ /^#/) cc_name[$1] = $2
+				}
+				for (i = 1; i <= ccs; i++) {
+					country = cc_list[i]
+					if (cc_name[country]) {
+					  country = cc_name[country]
+					}
+					print country
+				}
+			}
+		' <$TZ_ZONE_TABLE | sort -f)
+
+
+		# If there's more than one country, ask the user which one.
+		case $countries in
+		*"$newline"*)
+			echo >&2 'Please select a country.'
+			select country in $countries
+			do
+			    case $country in
+			    '') echo >&2 'Please enter a number in range.';;
+			    ?*) break
+			    esac
+			done
+
+			case $country in
+			'') exit 1
+			esac;;
+		*)
+			country=$countries
+		esac
+
+
+		# Get list of names of time zone rule regions in the country.
+		regions=$($AWK -F'\t' \
+			-v country="$country" \
+			-v TZ_COUNTRY_TABLE="$TZ_COUNTRY_TABLE" \
+		'
+			BEGIN {
+				cc = country
+				while (getline <TZ_COUNTRY_TABLE) {
+					if ($0 !~ /^#/  &&  country == $2) {
+						cc = $1
+						break
+					}
+				}
+			}
+			$1 == cc { print $4 }
+		' <$TZ_ZONE_TABLE)
+
+
+		# If there's more than one region, ask the user which one.
+		case $regions in
+		*"$newline"*)
+			echo >&2 'Please select one of the following' \
+				'time zone regions.'
+			select region in $regions
+			do
+				case $region in
+				'') echo >&2 'Please enter a number in range.';;
+				?*) break
+				esac
+			done
+			case $region in
+			'') exit 1
+			esac;;
+		*)
+			region=$regions
+		esac
+
+		# Determine TZ from country and region.
+		TZ=$($AWK -F'\t' \
+			-v country="$country" \
+			-v region="$region" \
+			-v TZ_COUNTRY_TABLE="$TZ_COUNTRY_TABLE" \
+		'
+			BEGIN {
+				cc = country
+				while (getline <TZ_COUNTRY_TABLE) {
+					if ($0 !~ /^#/  &&  country == $2) {
+						cc = $1
+						break
+					}
+				}
+			}
+			$1 == cc && $4 == region { print $3 }
+		' <$TZ_ZONE_TABLE)
+
+		# Make sure the corresponding zoneinfo file exists.
+		TZ_for_date=$TZDIR/$TZ
+		<$TZ_for_date || {
+			echo >&2 "$0: time zone files are not set up correctly"
+			exit 1
+		}
+	esac
+
+
+	# Use the proposed TZ to output the current date relative to UTC.
+	# Loop until they agree in seconds.
+	# Give up after 8 unsuccessful tries.
+
+	extra_info=
+	for i in 1 2 3 4 5 6 7 8
+	do
+		TZdate=$(LANG=C TZ="$TZ_for_date" date)
+		UTdate=$(LANG=C TZ=UTC0 date)
+		TZsec=$(expr "$TZdate" : '.*:\([0-5][0-9]\)')
+		UTsec=$(expr "$UTdate" : '.*:\([0-5][0-9]\)')
+		case $TZsec in
+		$UTsec)
+			extra_info="
+Local time is now:	$TZdate.
+Universal Time is now:	$UTdate."
+			break
+		esac
+	done
+
+
+	# Output TZ info and ask the user to confirm.
+
+	echo >&2 ""
+	echo >&2 "The following information has been given:"
+	echo >&2 ""
+	case $country+$region in
+	?*+?*)	echo >&2 "	$country$newline	$region";;
+	?*+)	echo >&2 "	$country";;
+	+)	echo >&2 "	TZ='$TZ'"
+	esac
+	echo >&2 ""
+	echo >&2 "Therefore TZ='$TZ' will be used.$extra_info"
+	echo >&2 "Is the above information OK?"
+
+	ok=
+	select ok in Yes No
+	do
+	    case $ok in
+	    '') echo >&2 'Please enter 1 for Yes, or 2 for No.';;
+	    ?*) break
+	    esac
+	done
+	case $ok in
+	'') exit 1;;
+	Yes) break
+	esac
+do :
+done
+
+case $SHELL in
+*csh) file=.login line="setenv TZ '$TZ'";;
+*) file=.profile line="TZ='$TZ'; export TZ"
+esac
+
+echo "/usr/bin/timedatectl set-timezone $TZ"
+whiptail --msgbox "Time/Zone now set to '$TZ'" 20 60 2
+}
+
+do_change_hostname() {
+  whiptail --msgbox "\
+Please note: RFCs mandate that a hostname's labels \
+may contain only the ASCII letters 'a' through 'z' (case-insensitive), 
+the digits '0' through '9', and the hyphen.
+Hostname labels cannot begin or end with a hyphen. 
+No other symbols, punctuation characters, or blank spaces are permitted.\
+" 20 70 1
+
+  CURRENT_HOSTNAME=`cat /etc/hostname | tr -d " \t\n\r"`
+  NEW_HOSTNAME=$(whiptail --inputbox "Please enter a hostname" 20 60 "$CURRENT_HOSTNAME" 3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    /usr/bin/hostnamectl set-hostname $NEW_HOSTNAME
+    #echo $NEW_HOSTNAME > /etc/hostname
+    sed -i "s/127.0.1.1.*$CURRENT_HOSTNAME/127.0.1.1\t$NEW_HOSTNAME/g" /etc/hosts
+    ASK_TO_REBOOT=1
+  fi
+}
+
+do_memory_split() {
+  if [ -e /boot/start_cd.elf ]; then
+    # New-style memory split setting
+    if ! mountpoint -q /boot; then
+      return 1
+    fi
+    ## get current memory split from /boot/config.txt
+    CUR_GPU_MEM=$(get_config_var gpu_mem /boot/config.txt)
+    [ -z "$CUR_GPU_MEM" ] && CUR_GPU_MEM=64
+    ## ask users what gpu_mem they want
+    NEW_GPU_MEM=$(whiptail --inputbox "How much memory should the GPU have?  e.g. 16/32/64/128/256" \
+      20 70 -- "$CUR_GPU_MEM" 3>&1 1>&2 2>&3)
+    if [ $? -eq 0 ]; then
+      set_config_var gpu_mem "$NEW_GPU_MEM" /boot/config.txt
+      ASK_TO_REBOOT=1
+    fi
+  else # Old firmware so do start.elf renaming
+    get_current_memory_split
+    MEMSPLIT=$(whiptail --menu "Set memory split.\n$MEMSPLIT_DESCRIPTION" 20 60 10 \
+      "240" "240MiB for ARM, 16MiB for VideoCore" \
+      "224" "224MiB for ARM, 32MiB for VideoCore" \
+      "192" "192MiB for ARM, 64MiB for VideoCore" \
+      "128" "128MiB for ARM, 128MiB for VideoCore" \
+      3>&1 1>&2 2>&3)
+    if [ $? -eq 0 ]; then
+      set_memory_split ${MEMSPLIT}
+      ASK_TO_REBOOT=1
+    fi
+  fi
+}
+
+get_current_memory_split() {
+  # Stop if /boot is not a mountpoint
+  if ! mountpoint -q /boot; then
+    return 1
+  fi
+  AVAILABLE_SPLITS="128 192 224 240"
+  MEMSPLIT_DESCRIPTION=""
+  for SPLIT in $AVAILABLE_SPLITS;do
+    if [ -e /boot/arm${SPLIT}_start.elf ] && cmp /boot/arm${SPLIT}_start.elf /boot/start.elf >/dev/null 2>&1;then
+      CURRENT_MEMSPLIT=$SPLIT
+      MEMSPLIT_DESCRIPTION="Current: ${CURRENT_MEMSPLIT}MiB for ARM, $((256 - $CURRENT_MEMSPLIT))MiB for VideoCore"
+      break
+    fi
+  done
+}
+
+set_memory_split() {
+  cp -a /boot/arm${1}_start.elf /boot/start.elf
+  sync
+  sync
+  sync
+}
+
+do_overclock() {
+  whiptail --msgbox "\
+Be aware that overclocking may reduce the lifetime of your
+Raspberry Pi. If overclocking at a certain level causes
+system instability, try a more modest overclock. Hold down
+shift during boot to temporarily disable overclock.
+See http://elinux.org/RPi_Overclocking for more information.\
+" 20 70 1
+  OVERCLOCK=$(whiptail --menu "Chose overclock preset" 20 60 10 \
+    "None" "700MHz ARM, 250MHz core, 400MHz SDRAM, 0 overvolt" \
+    "Modest" "800MHz ARM, 250MHz core, 400MHz SDRAM, 0 overvolt" \
+    "Medium" "900MHz ARM, 250MHz core, 450MHz SDRAM, 2 overvolt" \
+    "High" "950MHz ARM, 250MHz core, 450MHz SDRAM, 6 overvolt" \
+    "Turbo" "1000MHz ARM, 500MHz core, 600MHz SDRAM, 6 overvolt" \
+    3>&1 1>&2 2>&3)
+  if [ $? -eq 0 ]; then
+    case "$OVERCLOCK" in
+      None)
+        set_overclock None 700 250 400 0
+        ;;
+      Modest)
+        set_overclock Modest 800 250 400 0
+        ;;
+      Medium)
+        set_overclock Medium 900 250 450 2
+        ;;
+      High)
+        set_overclock High 950 250 450 6
+        ;;
+      Turbo)
+        whiptail --msgbox "Warning: some people have reported SD card corruption with this level of overclock." \
+          20 70 1
+        [ $? -ne 0 ] && return 1
+        set_overclock Turbo 1000 500 600 6
+        ;;
+      *)
+        whiptail --msgbox "Programmer error, unrecognised overclock preset" 20 60 2
+        return 1
+        ;;
+    esac
+    ASK_TO_REBOOT=1
+  fi
+}
+
+set_overclock() {
+  set_config_var arm_freq $2 /boot/config.txt &&
+  set_config_var core_freq $3 /boot/config.txt &&
+  set_config_var sdram_freq $4 /boot/config.txt &&
+  set_config_var over_voltage $5 /boot/config.txt &&
+  # now set up an init.d script
+cat <<\EOF > /etc/systemd/system/govdown.service &&
+[Unit]
+Description=Test shift key pressed to switch scaling governor
+DefaultDependencies=no
+#Before=sysinit.target
+
+[Service]
+Type=forking
+ExecStart=/etc/systemd/system/govdown.sh
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
+
+EOF
+
+cat <<\EOF > /etc/systemd/system/govdown.sh &&
+
+#!/bin/sh
+
+main_loop() {
+  if [ -e /dev/input/event0 ]; then
+    key_scan
+  else
+    main_loop
+  fi
+}
+
+key_scan() {
+  timeout 1 cat /dev/input/event* | hexdump | grep "002a\|0036"
+  RETURN=$?
+  if (( RETURN == 0 )); then
+    printf " Yes. Switching scaling governor"
+    echo 70 > /sys/devices/system/cpu/cpufreq/ondemand/up_threshold
+  fi
+  exit 0
+}
+
+main_loop
+
+
+EOF
+  chmod +x /etc/systemd/system/govdown.sh &&
+  /usr/bin/systemctl enable govdown &&
+  whiptail --msgbox "Set overclock to preset '$1'" 20 60 2
+}
+
+do_ssh() {
+  if [ -e /var/log/regen_ssh_keys.log ] && ! grep -q "^finished" /var/log/regen_ssh_keys.log; then
+    whiptail --msgbox "Initial ssh key generation still running. Please wait and try again." 20 60 2
+    return 1
+  fi
+  whiptail --yesno "Would you like the SSH server enabled or disabled?" 20 60 2 \
+    --yes-button Enable --no-button Disable
+  RET=$?
+  if [ $RET -eq 0 ]; then
+    /usr/bin/systemctl enable sshd &&
+    /usr/bin/systemctl start sshd &&
+    whiptail --msgbox "SSH server enabled" 20 60 1
+  elif [ $RET -eq 1 ]; then
+    /usr/bin/systemctl disable sshd &&
+    whiptail --msgbox "SSH server disabled" 20 60 1
+  else
+    return $RET
+  fi
+}
+
+do_boot_behaviour() {
+  if [ -e /usr/lib/systemd/system/lxdm.service ]; then
+    whiptail --yesno "Should we boot straight to desktop?" 20 60 2
+    RET=$?
+    if [ $RET -eq 0 ]; then # yes
+      /usr/bin/systemctl enable lxdm
+      sed /etc/lxdm/lxdm.conf -i -e "s/^#\ autologin=.*/autologin=pi/"
+      /usr/bin/systemctl enable lxdm
+      ASK_TO_REBOOT=1
+    elif [ $RET -eq 1 ]; then # no
+        /usr/bin/systemctl disable lxdm
+      ASK_TO_REBOOT=1
+    else # user hit escape
+      return 1
+    fi
+  else
+    whiptail --msgbox "Choose install of destop from main menu first" 20 60 2
+    return 1
+  fi
+}
+
+do_desktop() {
+  whiptail --msgbox "Going to install LXDE" 20 70 1
+  pacman -Sy xf86-video-fbdev lxde xorg-xinit sudo --noconfirm &&
+  groupadd pi
+  useradd -m -d /home/pi -g pi pi
+  echo "root ALL=(ALL) ALL" > /etc/sudoers.d/pi.conf
+}
+
+do_xbmc() {
+  whiptail --msgbox "Going to install XBMC" 20 70 1
+  pacman -Sy xbmc-rbp --noconfirm &&
+      /usr/bin/systemctl enable xbmc
+      ASK_TO_REBOOT=1
+}
+
+# $1 is 0 to disable camera, 1 to enable it
+set_camera() {
+  # Stop if /boot is not a mountpoint
+  if ! mountpoint -q /boot; then
+    return 1
+  fi
+
+  [ -e /boot/config.txt ] || touch /boot/config.txt
+
+  if [ "$1" -eq 0 ]; then # disable camera
+    set_config_var start_file start.elf /boot/config.txt
+    set_config_var fixup_file fixup.dat /boot/config.txt
+  else # enable camera
+    set_config_var start_file start_x.elf /boot/config.txt
+    set_config_var fixup_file fixup_x.dat /boot/config.txt
+    set_config_var gpu_mem 128 /boot/config.txt
+  fi
+}
+
+do_camera() {
+  if [ ! -e /boot/start_x.elf ]; then
+    whiptail --msgbox "Your firmware appears to be out of date (no start_x.elf). Please update" 20 60 2
+    return 1
+  fi
+  whiptail --yesno "Enable support for Raspberry Pi camera?" 20 60 2 \
+    --yes-button Disable --no-button Enable
+  RET=$?
+  if [ $RET -eq 0 ] || [ $RET -eq 1 ]; then
+    ASK_TO_REBOOT=1
+    set_camera $RET;
+  else
+    return 1
+  fi
+}
+
+do_update() {
+  apt-get update &&
+  apt-get install raspi-config &&
+  printf "Sleeping 5 seconds before reloading raspi-config\n" &&
+  sleep 5 &&
+  exec raspi-config
+}
+
+do_finish() {
+  if [ -e /etc/profile.d/raspi-config.sh ]; then
+    rm -f /etc/profile.d/raspi-config.sh
+    sed -i /etc/inittab \
+      -e "s/^#\(.*\)#\s*RPICFG_TO_ENABLE\s*/\1/" \
+      -e "/#\s*RPICFG_TO_DISABLE/d"
+    telinit q
+  fi
+  if [ $ASK_TO_REBOOT -eq 1 ]; then
+    whiptail --yesno "Would you like to reboot now?" 20 60 2
+    if [ $? -eq 0 ]; then # yes
+      sync
+      sync
+      sync
+      reboot
+    fi
+  fi
+  exit 0
+}
+
+#
+# Command line options for non-interactive use
+#
+for i in $*
+do
+  case $i in
+  --memory-split)
+    OPT_MEMORY_SPLIT=GET
+    printf "Not currently supported\n"
+    exit 1
+    ;;
+  --memory-split=*)
+    OPT_MEMORY_SPLIT=`echo $i | sed 's/[-a-zA-Z0-9]*=//'`
+    printf "Not currently supported\n"
+    exit 1
+    ;;
+  --expand-rootfs)
+    INTERACTIVE=False
+    do_expand_rootfs
+    printf "Please reboot\n"
+    exit 0
+    ;;
+  *)
+    # unknown option
+    ;;
+  esac
+done
+
+#if [ "GET" = "${OPT_MEMORY_SPLIT:-}" ]; then
+#  set -u # Fail on unset variables
+#  get_current_memory_split
+#  echo $CURRENT_MEMSPLIT
+#  exit 0
+#fi
+
+# Everything else needs to be run as root
+if [ $(id -u) -ne 0 ]; then
+  printf "Script must be run as root. Try 'sudo raspi-config'\n"
+  exit 1
+fi
+
+if [ -n "${OPT_MEMORY_SPLIT:-}" ]; then
+  set -e # Fail when a command errors
+  set_memory_split "${OPT_MEMORY_SPLIT}"
+  exit 0
+fi
+
+#
+# Interactive use loop
+#
+while true; do
+  FUN=$(whiptail --menu "Raspi-config" 20 80 13 --cancel-button Finish --ok-button Select \
+    "info" "Information about this tool" \
+    "expand_rootfs" "Expand root partition to fill SD card" \
+    "change_passroot" "Change password for 'root' user" \
+    "update" "Update ArchLinuxArm" \
+    "configure_keyboard" "Set keyboard layout" \
+    "change_locale" "Set locale" \
+    "change_timezone" "Set timezone" \
+    "change_hostname" "Set hostname" \
+    "desktop" "Add LXDE desktop, add user pi and add to sudo" \
+    "change_pass" "Change password for 'pi' user" \
+    "boot_behaviour" "Start desktop on boot?" \
+    "xbmc" "Turn Raspberry Pi into a media player" \
+    "overscan" "Change overscan" \
+    "memory_split" "Change memory split" \
+    "overclock" "Configure overclocking" \
+    "ssh" "Enable or disable ssh server" \
+    "camera" "Enable/Disable camera addon support" \
+    3>&1 1>&2 2>&3)
+  RET=$?
+  if [ $RET -eq 1 ]; then
+    do_finish
+  elif [ $RET -eq 0 ]; then
+    "do_$FUN" || whiptail --msgbox "There was an error running do_$FUN" 20 60 1
+  else
+    exit 1
+  fi
+done
