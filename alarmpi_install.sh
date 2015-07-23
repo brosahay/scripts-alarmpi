@@ -5,12 +5,14 @@
 #!/bin/bash
 
 #### VARIABLES ####
+@echo off
 device="/dev/mmcblk0"
+partitions=($(lsblk "$device" | fgrep '─' | sed -E 's/^.+─(\w+).+$/\1/g'))
 ###################
-
+sudo umount "/dev/${partitions[0]}"
+sudo umount "/dev/${partitions[1]}"
 (echo o; echo n; echo p;echo 1; echo ; echo +100M; echo t; echo c; echo n; echo p; echo 2; echo ; echo ;echo w)|sudo fdisk $device
 sudo fdisk -l $device
-partitions=($(lsblk "$device" | fgrep '─' | sed -E 's/^.+─(\w+).+$/\1/g'))
 sudo mkfs.vfat "/dev/${partitions[0]}"
 mkdir boot
 sudo mount "/dev/${partitions[0]}" boot

@@ -59,7 +59,7 @@ echo -e "##OVERCLOCKING##\narm_freq=800\narm_freq_min=100\ncore_freq=300\ncore_f
 #### SCRIPTS ####
 cd /home/$default_user
 wget https://github.com/revosftw/alarmpi_box/blob/master/rpi_trans_start.sh
-chmor +x rpi_trans_start.sh
+chmod +x rpi_trans_start.sh
 
 mkdir -p /home/$default_user/.config/systemd/user
 #echo >>/home/$default_user/.config/systemd/user/rpi_transmission.service
