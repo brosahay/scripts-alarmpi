@@ -62,3 +62,7 @@ wget https://aur.archlinux.org/packages/ya/yaourt/yaourt.tar.gz
 tar -xvzf yaourt.tar.gz
 cd yaourt
 makepkg -si
+
+#### START UPS ####
+#sudo systemctl enable transmission
+#sudo systemctl enable smbd
