@@ -1,7 +1,0 @@
-[Mount]
-What=/dev/sda2
-Where=/mnt/share
-Type=ntfs-3g
-Options=noauto,nofail,default
-DirectoryMode=0755
-TimeoutSec=5

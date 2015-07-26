@@ -5,7 +5,6 @@
 #!/bin/bash
 
 #### VARIABLES ####
-@echo off
 device="/dev/mmcblk0"
 partitions=($(lsblk "$device" | fgrep '─' | sed -E 's/^.+─(\w+).+$/\1/g'))
 ###################
