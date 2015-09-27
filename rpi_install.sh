@@ -47,7 +47,7 @@ mkdir -p $torrent_path
 wifi-menu -o
 
 #### OVERCLOCKING ####
-echo -e "##OVERCLOCKING##\narm_freq=800\narm_freq_min=100\ncore_freq=300\ncore_freq_min=75\nsdram_freq=400\nover_voltage=0" >> /boot/config.txt
+#echo -e "##OVERCLOCKING##\narm_freq=800\narm_freq_min=100\ncore_freq=300\ncore_freq_min=75\nsdram_freq=400\nover_voltage=0" >> /boot/config.txt
 
 #### SCRIPTS ####
 cd /usr/bin
