@@ -19,7 +19,7 @@ pacman -S wget --noconfirm --needed
 
 #### PACMAN ####
 sed -i 's/#Color/Color/' /etc/pacman.conf
-sed -i 's/#XferCommand = \/usr\/bin\/wget --passive-ftp -c -O %o %u/XferCommand = \/usr\/bin\/wget --passive-ftp -c -O -q --show-progress \x27%o\x27 \x27%u\x27/' /etc/pacman.conf
+sed -i 's/#XferCommand = \/usr\/bin\/wget --passive-ftp -c -O %o %u/XferCommand = \/usr\/bin\/wget --passive-ftp -c -q --show-progress -O \x27%o\x27 \x27%u\x27/' /etc/pacman.conf
 
 #### UPDATE rPi AND INSTALL PACKAGES ####
 #pacman -S polkit --noconfirm
