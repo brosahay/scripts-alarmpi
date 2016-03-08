@@ -34,11 +34,15 @@ pacman -S dialog wpa_supplicant --noconfirm --needed
 #OPTIONAL
 pacman -S packer ntp transmission-cli git htop ntfs-3g --noconfirm --needed
 
-#### ADD A NEW USER AS pi ####
+#### ADD A NEW USER ####
 useradd -m -g users -G wheel -s /bin/zsh $default_user
+usermod -g lp,network,video,audio,storage $default_user
 echo "%wheel ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 chfn $default_user
 passwd $default_user
+
+#### TRANSMISSION USER ####
+usermod -g users transmission
 
 #### MOUNT POINTS ####
 mkdir -p $torrent_path

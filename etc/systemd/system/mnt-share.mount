@@ -5,4 +5,5 @@ Description=xHD mount script
 What=/dev/sda2
 Where=/mnt/share
 Type=ntfs-3g
-Options=noauto,nofail
+Options=gid=users,dmask=002,fmask=002,noauto,nofail
+
