@@ -10,6 +10,7 @@ lsblk
 echo -e "\nSelect the SD CARD (ex: /dev/sda):"
 read device
 partitions=($(lsblk "$device" | fgrep '─' | sed -E 's/^.+─(\w+).+$/\1/g'))
+
 echo -e "Unmount SD CARD"
 for eachPartion in "${partitions[@]}"
 	do sudo umount -v "/dev/$eachPartion"
