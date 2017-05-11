@@ -2,14 +2,17 @@
 #### @author : revosftw     ####
 #### 	23- Jul - 2015 		####
 
-#### VARIABLES ####
-default_user="alarm"
-torrent_path="/mnt/share"
-drive_path="/dev/sda2"
+#### DEFAULT VARIABLES ####
+
+${default_user:="alarm"}
+${torrent_path:="/media/data"}
+${drive_path:="/dev/sda2"}
 
 ###################
 
 #!/bin/bash
+[ "$UID" -eq 0 ] || exec su --command="sh $0 $@"
+
 #### CHANGE ROOT PASSWORD ####
 passwd
 
@@ -59,17 +62,17 @@ wget https://raw.githubusercontent.com/revosftw/alarmpi_box/master/raspi-config
 chmod +x raspi-config
 
 #### YAOURT ####
-cd /tmp
-su $default_user
-wget https://aur.archlinux.org/packages/pa/package-query/package-query.tar.gz
-tar -xvzf package-query.tar.gz
-cd package-query
-makepkg -si
-cd ..
-wget https://aur.archlinux.org/packages/ya/yaourt/yaourt.tar.gz
-tar -xvzf yaourt.tar.gz
-cd yaourt
-makepkg -si
+#cd /tmp
+#su $default_user
+#wget https://aur.archlinux.org/packages/pa/package-query/package-query.tar.gz
+#tar -xvzf package-query.tar.gz
+#cd package-query
+#makepkg -si
+#cd ..
+#wget https://aur.archlinux.org/packages/ya/yaourt/yaourt.tar.gz
+#tar -xvzf yaourt.tar.gz
+#cd yaourt
+#makepkg -si
 
 #### START UPS ####
 #sudo systemctl enable transmission
