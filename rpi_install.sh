@@ -4,9 +4,9 @@
 
 #### DEFAULT VARIABLES ####
 
-${default_user:="alarm"}
-${torrent_path:="/media/data"}
-${drive_path:="/dev/sda2"}
+default_user=${default_user:="alarm"}
+torrent_path=${torrent_path:="/media/data"}
+drive_path=${drive_path:="/dev/sda2"}
 
 ###################
 

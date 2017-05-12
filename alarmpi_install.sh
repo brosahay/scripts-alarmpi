@@ -1,31 +1,121 @@
-#### ALARMpi SD CARD INSTALL SCRIPT ####
-#### 		@author : revosftw		####
-#### 			23- Jul - 2015 		####
+# alarmpi install script
+#!/bin/sh
+function change_root_password(){
+	passwd "$1"
+}
 
-#!/bin/bash
+function install_wifi(){
+	echo -e "Installing WiFi related packages"
+	pacman -S dialog wpa_supplicant --noconfirm --needed
+	echo -e "Do you want to setup WiFi now? [Y/N]"
+	read response
+	if echo "$response" | grep -iq "^y"; then
+		wifi-menu -o
+	fi
+	echo -e "WiFi installed"
+}
 
-#### VARIABLES ####
-device="/dev/mmcblk0"
-partitions=($(lsblk "$device" | fgrep '─' | sed -E 's/^.+─(\w+).+$/\1/g'))
-###################
-sudo umount "/dev/${partitions[0]}"
-sudo umount "/dev/${partitions[1]}"
-(echo o; echo n; echo p;echo 1; echo ; echo +100M; echo t; echo c; echo n; echo p; echo 2; echo ; echo ;echo w)|sudo fdisk $device
-sudo fdisk -l $device
-sudo mkfs.vfat "/dev/${partitions[0]}"
-mkdir boot
-sudo mount "/dev/${partitions[0]}" boot
-sudo mkfs.ext4 "/dev/${partitions[1]}"
-mkdir root
-sudo mount "/dev/${partitions[1]}" root
-if ls|grep -qs 'ArchLinuxARM-rpi'; then
-	echo "Using old copy of ArchLinuxARM"
-else
-	wget -v -c http://archlinuxarm.org/os/ArchLinuxARM-rpi-latest.tar.gz
-fi
-sudo su -c 'bsdtar -xpf ArchLinuxARM-rpi-latest.tar.gz -C root'
-sudo su -c 'sync'
-sudo mv root/boot/* boot 
-sudo umount boot root
-sudo su -c "rm -rf boot root"
-echo "SD CARD READY with ArchLinuxARM"
+function install_audio(){
+	echo -e "Installing audio realted packages"
+	pacman -S alsa-utils alsa-firmware alsa-lib alsa-plugins
+	echo -e "Audio installed"
+}
+
+function install_base(){
+	echo -e "Updating package databases"
+	pacman -Syu --noconfirm
+	echo -e "Installing base packages"
+	pacman --noconfirm --needed -S base-devel vim zsh wget libnewt diffutils htop ntp packer
+	update_pacman
+	echo -e "Installing filesystems"
+	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g
+}
+
+function install_python2(){
+	echo -e "Installing python2"
+	pacman --noconfirm --needed -S python2 python2-pip python2-lxml
+	pip2 install mitmproxy
+}
+
+function install_yaourt(){
+	cd /tmp
+	#su $default_user
+	wget https://aur.archlinux.org/packages/pa/package-query/package-query.tar.gz
+	tar -xvzf package-query.tar.gz
+	cd package-query
+	makepkg -si
+	cd ..
+	wget https://aur.archlinux.org/packages/ya/yaourt/yaourt.tar.gz
+	tar -xvzf yaourt.tar.gz
+	cd yaourt
+	makepkg -si
+}
+
+function install_transmission_seedbox(){
+	echo -e "Installing Transmission"
+	pacman -S transmission-cli
+	usermod -aG users transmission
+	lsblk
+	echo -e "Select the drive to be used: (ex:/dev/sda1,/dev/sda2)"
+	read external_drive
+	external_drive = {external_drive:="/dev/sda2"}
+	echo -e "Provide torrent download folder (ex: /media/data,\e[1m/mnt/downloads\e[21m):"
+	read torrent_download_folder
+	torrent_download_folder={torrent_download_folder:="/media/data"}
+	mkdir -p $torrent_download_folder
+}
+
+function make_mount(){
+	#what="$external_drive"
+	#where="$torrent_download_folder"
+	#partition_type=blkid -s TYPE "$what" | grep -o '"[^"]*"' | sed 's/\"//g'
+	echo -e "[Unit]
+			 \nDescription=xHD mount script
+			 \n
+			 \n[Mount]
+			 \nWhat=/dev/sda2
+			 \nWhere=/media/data
+			 \nType=ntfs-3g
+			 \nOptions=defaults" > /etc/systemd/system/media-data.mount
+}
+
+function update_pacman(){
+	echo -e "Setting options for pacman"
+	sed -i 's/#Color/Color/' /etc/pacman.conf
+	sed -i 's/#XferCommand = \/usr\/bin\/wget --passive-ftp -c -O %o %u/XferCommand = \/usr\/bin\/wget --passive-ftp -c -q --show-progress -O \x27%o\x27 \x27%u\x27/' /etc/pacman.conf
+}
+
+
+function update_user_config(){
+	usermod -aG users,lp,network,video,audio,storage "$1"
+	chfn "$1"
+	passwd "$1"
+}
+
+function overclock_raspberrypi(){
+	echo -e "##OVERCLOCKING##
+			 \narm_freq=800
+			 \narm_freq_min=100
+			 \ncore_freq=300
+			 \ncore_freq_min=75
+			 \nsdram_freq=400
+			 \nover_voltage=0" >> /boot/config.txt
+}
+
+function move_root(){
+	$newroot=/mnt/newroot
+	sudo mkdir $newroot
+	lsblk
+	echo -e "Choose new root (ex: /dev/sda1):"
+	read newrootdevice
+	newroot={newrootdevice:=/dev/sda1}
+	echo -e "Formatting new root"
+	mkfs.ext4 -L "armroot_overlay" $newrootdevice
+	echo -e "Mounting new root"
+	mount $newrootdevice $newroot
+	rsync -axS / $newroot
+	cp /boot/cmdline.txt /boot/cmdline.txt.bak
+}
+
+#main function
+[ "$UID" -eq 0 ] || exec su --command="sh $0 $@"
