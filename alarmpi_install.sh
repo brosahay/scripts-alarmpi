@@ -71,28 +71,31 @@ function install_transmission_seedbox(){
 	echo -e "Installing Transmission"
 	pacman -S transmission-cli > /dev/null 2>&1
 	usermod -aG users transmission
+
 	lsblk
 	echo -e "Select the drive to be used: (ex:/dev/sda1,\e[1m/dev/sda2\e[21m)"
 	read external_drive
 	external_drive=${external_drive:="/dev/sda2"}
+	
 	echo -e "Provide torrent download folder (ex: /media/data,\e[1m/mnt/downloads\e[21m):"
 	read torrent_download_folder
 	torrent_download_folder=${torrent_download_folder:="/media/data"}
 	mkdir -p $torrent_download_folder
+	
 	make_mount
 }
 
 function make_mount(){
-	#what="$external_drive"
-	#where="$torrent_download_folder"
-	#partition_type=blkid -s TYPE "$what" | grep -o '"[^"]*"' | sed 's/\"//g'
+	what="$external_drive"
+	where="$torrent_download_folder"
+	partition_type=blkid -s TYPE "$what" | grep -o '"[^"]*"' | sed 's/\"//g'
 	echo -e "[Unit]
 			 \nDescription=xHD mount script
 			 \n
 			 \n[Mount]
-			 \nWhat=/dev/sda2
-			 \nWhere=/media/data
-			 \nType=ntfs-3g
+			 \nWhat=$what
+			 \nWhere=$where
+			 \nType=$partition_type
 			 \nOptions=defaults" > /etc/systemd/system/media-data.mount
 }
 
