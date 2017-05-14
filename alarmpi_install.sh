@@ -115,7 +115,34 @@ function move_root(){
 	mount $newrootdevice $newroot
 	rsync -axS / $newroot
 	cp /boot/cmdline.txt /boot/cmdline.txt.bak
+	sed -i /boot/cmdline.txt 's/root=\/dev\/mmcblk0p2/root=${newrootdevice}/'
+	sed -i /boot/cmdline.txt 's/elevator=noop//'
+}
+
+function show_options(){
+	echo -e "[1]Setup Raspberry Pi"
+	echo -e "[2]Install Transmission"
+	echo -e "[3]Move Root to XHD"
+	echo -e "[4]Exit"
+}
+
+function read_options(){
+	local choice
+	read -p "Enter choice:" choice
+	case $choice in
+		1)install_base;install_wifi;install_python2;;
+		2)install_transmission_seedbox;;
+		3)move_root;;
+		4)exit 0;;
+		*)echo -e "INVALID SELECTION" && sleep 2
+	esac	
 }
 
 #main function
 [ "$UID" -eq 0 ] || exec su --command="sh $0 $@"
+
+while true;
+do
+	show_options
+	read_options
+done
