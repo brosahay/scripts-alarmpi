@@ -1,12 +1,21 @@
 # alarmpi install script
 #!/bin/sh
+
+RED='\033[0;41;30m'
+STD='\033[0;0;39m'
+
+function pause(){
+  read -p "Press [Enter] key to continue..." fackEnterKey
+}
+
 function change_root_password(){
-	passwd "$1"
+	echo -e "Enter new root password:" 
+	passwd
 }
 
 function install_wifi(){
 	echo -e "Installing WiFi related packages"
-	pacman -S dialog wpa_supplicant --noconfirm --needed
+	pacman -S dialog wpa_supplicant --noconfirm --needed > /dev/null
 	echo -e "Do you want to setup WiFi now? [Y/N]"
 	read response
 	if echo "$response" | grep -iq "^y"; then
@@ -17,23 +26,23 @@ function install_wifi(){
 
 function install_audio(){
 	echo -e "Installing audio realted packages"
-	pacman -S alsa-utils alsa-firmware alsa-lib alsa-plugins
+	pacman -S alsa-utils alsa-firmware alsa-lib alsa-plugins > /dev/null
 	echo -e "Audio installed"
 }
 
 function install_base(){
 	echo -e "Updating package databases"
-	pacman -Syu --noconfirm
+	pacman -Syu --noconfirm > /dev/null
 	echo -e "Installing base packages"
-	pacman --noconfirm --needed -S base-devel vim zsh wget libnewt diffutils htop ntp packer
+	pacman --noconfirm --needed -S base-devel vim zsh wget libnewt diffutils htop ntp packer > /dev/null
 	update_pacman
 	echo -e "Installing filesystems"
-	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g
+	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g > /dev/null
 }
 
 function install_python2(){
 	echo -e "Installing python2"
-	pacman --noconfirm --needed -S python2 python2-pip python2-lxml
+	pacman --noconfirm --needed -S python2 python2-pip python2-lxml > /dev/null
 	pip2 install mitmproxy
 }
 
@@ -53,7 +62,7 @@ function install_yaourt(){
 
 function install_transmission_seedbox(){
 	echo -e "Installing Transmission"
-	pacman -S transmission-cli
+	pacman -S transmission-cli > /dev/null
 	usermod -aG users transmission
 	lsblk
 	echo -e "Select the drive to be used: (ex:/dev/sda1,/dev/sda2)"
@@ -63,6 +72,7 @@ function install_transmission_seedbox(){
 	read torrent_download_folder
 	torrent_download_folder={torrent_download_folder:="/media/data"}
 	mkdir -p $torrent_download_folder
+	make_mount
 }
 
 function make_mount(){
@@ -87,9 +97,12 @@ function update_pacman(){
 
 
 function update_user_config(){
-	usermod -aG users,lp,network,video,audio,storage "$1"
-	chfn "$1"
-	passwd "$1"
+	local user
+	read -p "Enter username[alarm]:"
+	user={user:="alarm"}
+	usermod -aG users,lp,network,video,audio,storage "$user"
+	chfn "$user"
+	passwd "$user"
 }
 
 function overclock_raspberrypi(){
@@ -120,23 +133,29 @@ function move_root(){
 }
 
 function show_options(){
-	echo -e "[1]Setup Raspberry Pi"
-	echo -e "[2]Install Transmission"
-	echo -e "[3]Move Root to XHD"
-	echo -e "[4]Exit"
+	echo -e "\e[1m[1]\e[21mSetup Raspberry Pi"
+	echo -e "\e[1m[2]\e[21mInstall Transmission"
+	echo -e "\e[1m[3]\e[21mInstall Python2"
+	echo -e "\e[1m[8]\e[21mMove Root to XHD"
+	echo -e "\e[1m[9]\e[21mOverclock the Pi"
+	echo -e "\e[1m[0]\e[21mExit"
 }
 
 function read_options(){
 	local choice
 	read -p "Enter choice:" choice
 	case $choice in
-		1)install_base;install_wifi;install_python2;;
+		1)change_root_password;install_base;install_wifi;update_user_config;;
 		2)install_transmission_seedbox;;
-		3)move_root;;
-		4)exit 0;;
-		*)echo -e "INVALID SELECTION" && sleep 2
+		3)install_python2;;
+		8)move_root;;
+		9)overclock_raspberrypi;;
+		0)exit 0;;
+		*)echo -e "$RED \e[1mERROR:\e[21m $STD INVALID SELECTION" && sleep 2
 	esac	
 }
+
+trap '' SIGINT SIGQUIT SIGTSTP
 
 #main function
 [ "$UID" -eq 0 ] || exec su --command="sh $0 $@"
