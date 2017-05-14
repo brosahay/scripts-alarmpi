@@ -142,13 +142,14 @@ function basic_setup(){
 	hostnamectl set-hostname $hostname
 
 	local user
-	userdel alarm
+	#userdel alarm
 	read -p "Enter username[pi,alarm]:" user
 	user=${user:="pi"}
-	if grep -c "$user" /etc/group; then
+	getent passwd $user > /dev/null
+	if [ $? -eq 0 ]; then
 		update_user_config $user
 	else
-		useradd -d /home/$user -m -G wheel,rvmu,sers,lp,network,video,audio,storage -s /bin/bash $user
+		useradd -m $user
 		update_user_config $user
 	fi
 
@@ -168,7 +169,8 @@ function basic_setup(){
 
 function update_user_config(){
 	local user=$1
-	usermod -aG wheel,rvm,users,lp,network,video,audio,storage "$user"
+	#usermod -aG wheel,rvm,sers,users,lp,network,video,audio,storage
+	usermod -g users -aG wheel,lp,network,video,audio,storage "$user"
 	chfn "$user"
 	passwd "$user"
 }
@@ -213,7 +215,7 @@ function read_options(){
 	local choice
 	read -p "Enter choice:" choice
 	case $choice in
-		1)install_base;basic_setup;install_wifi;update_user_config;;
+		1)install_base;install_wifi;basic_setup;;
 		2)install_transmission_seedbox;;
 		3)install_python2;;
 		4)install_raspiconfig;;
