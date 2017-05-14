@@ -4,43 +4,48 @@
 RED='\033[0;41;30m'
 STD='\033[0;0;39m'
 
+RELEASE="2>&1"
+DEBUG=""
+
+DFLAG=DEBUG
+
 function pause(){
   read -p "Press [Enter] key to continue..." fackEnterKey
 }
 
 function install_wifi(){
 	echo -e "Installing WiFi related packages"
-	pacman -S dialog wpa_supplicant wireless_tools iw crda lshw --noconfirm --needed > /dev/null 2>&1
+	pacman -S dialog wpa_supplicant wireless_tools iw crda lshw --noconfirm --needed > /dev/null "$DFLAG"
 	echo -e "WiFi installed"
 }
 
 function install_audio(){
 	echo -e "Installing audio realted packages"
-	pacman -S alsa-utils alsa-firmware alsa-lib alsa-plugins > /dev/null 2>&1
+	pacman -S alsa-utils alsa-firmware alsa-lib alsa-plugins > /dev/null "$DFLAG"
 	echo -e "Audio installed"
 }
 
 function install_base(){
 	echo -e "Updating package databases"
-	pacman -Syu --noconfirm > /dev/null 2>&1
-	pacman -Sy pacman > /dev/null 2>&1
-	pacman-key --init > /dev/null 2>&1
-	pacman -S archlinux-keyring > /dev/null 2>&1
-	pacman-key --populate archlinux > /dev/null 2>&1
-	pacman -Syu --ignore filesystem > /dev/null 2>&1
-	pacman -S filesystem --force > /dev/null 2>&1
+	pacman -Syu --noconfirm > /dev/null "$DFLAG"
+	pacman -Sy pacman > /dev/null "$DFLAG"
+	pacman-key --init > /dev/null "$DFLAG"
+	pacman -S archlinux-keyring > /dev/null "$DFLAG"
+	pacman-key --populate archlinux > /dev/null "$DFLAG"
+	pacman -Syu --ignore filesystem > /dev/null "$DFLAG"
+	pacman -S filesystem --force > /dev/null "$DFLAG"
 	echo -e "Installing base packages"
-	pacman --noconfirm --needed -S base-devel vim wget libnewt diffutils htop ntp packer > /dev/null 2>&1
+	pacman --noconfirm --needed -S base-devel vim wget libnewt diffutils htop ntp packer > /dev/null "$DFLAG"
 	echo -e "Installing filesystems"
-	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g > /dev/null 2>&1
+	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g > /dev/null "$DFLAG"
 }
 
 function install_zsh(){
 	echo -e "Installing ZSH"
-	pacman -S zsh --noconfirm --needed > /dev/null 2>&1
+	pacman -S zsh --noconfirm --needed > /dev/null "$DFLAG"
 	echo -e "Installing grml-zsh"
-	wget -O /home/"$1"/.zshrc http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc  > /dev/null 2>&1
-	wget -O /home/"$1"/.zshrc.local  http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc  > /dev/null 2>&1
+	wget -O /home/"$1"/.zshrc http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc  > /dev/null "$DFLAG"
+	wget -O /home/"$1"/.zshrc.local  http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc  > /dev/null "$DFLAG"
 	chown /home/"$1"/.zshrc* "$1:$1"
 	usermod -s /bin/zsh "$1"
 }
@@ -54,7 +59,7 @@ function install_raspiconfig(){
 
 function install_python2(){
 	echo -e "Installing python2"
-	pacman --noconfirm --needed -S python2 python2-pip python2-lxml > /dev/null 2>&1
+	pacman --noconfirm --needed -S python2 python2-pip python2-lxml > /dev/null "$DFLAG"
 	pip2 install mitmproxy
 }
 
@@ -74,7 +79,7 @@ function install_yaourt(){
 
 function install_transmission_seedbox(){
 	echo -e "Installing Transmission"
-	pacman -S transmission-cli > /dev/null 2>&1
+	pacman -S transmission-cli > /dev/null "$DFLAG"
 	usermod -aG users transmission
 
 	lsblk
