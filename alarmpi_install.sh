@@ -44,8 +44,8 @@ function install_zsh(){
 	echo -e "Installing ZSH"
 	pacman -S zsh --noconfirm --needed > /dev/null "$DFLAG"
 	echo -e "Installing grml-zsh"
-	wget -O /home/"$1"/.zshrc http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc  > /dev/null "$DFLAG"
-	wget -O /home/"$1"/.zshrc.local  http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc  > /dev/null "$DFLAG"
+	wget -O /home/"$1"/.zshrc "http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc"  > /dev/null "$DFLAG"
+	wget -O /home/"$1"/.zshrc.local  "http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc"  > /dev/null "$DFLAG"
 	chown /home/"$1"/.zshrc* "$1:$1"
 	usermod -s /bin/zsh "$1"
 }
