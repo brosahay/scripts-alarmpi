@@ -15,7 +15,7 @@ function change_root_password(){
 
 function install_wifi(){
 	echo -e "Installing WiFi related packages"
-	pacman -S dialog wpa_supplicant --noconfirm --needed > /dev/null
+	pacman -S dialog wpa_supplicant --noconfirm --needed > /dev/null 2>&1
 	echo -e "Do you want to setup WiFi now? [Y/N]"
 	read response
 	if echo "$response" | grep -iq "^y"; then
@@ -26,23 +26,23 @@ function install_wifi(){
 
 function install_audio(){
 	echo -e "Installing audio realted packages"
-	pacman -S alsa-utils alsa-firmware alsa-lib alsa-plugins > /dev/null
+	pacman -S alsa-utils alsa-firmware alsa-lib alsa-plugins > /dev/null 2>&1
 	echo -e "Audio installed"
 }
 
 function install_base(){
 	echo -e "Updating package databases"
-	pacman -Syu --noconfirm > /dev/null
+	pacman -Syu --noconfirm > /dev/null 2>&1
 	echo -e "Installing base packages"
-	pacman --noconfirm --needed -S base-devel vim zsh wget libnewt diffutils htop ntp packer > /dev/null
+	pacman --noconfirm --needed -S base-devel vim zsh wget libnewt diffutils htop ntp packer > /dev/null 2>&1
 	update_pacman
 	echo -e "Installing filesystems"
-	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g > /dev/null
+	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g > /dev/null 2>&1
 }
 
 function install_python2(){
 	echo -e "Installing python2"
-	pacman --noconfirm --needed -S python2 python2-pip python2-lxml > /dev/null
+	pacman --noconfirm --needed -S python2 python2-pip python2-lxml > /dev/null 2>&1
 	pip2 install mitmproxy
 }
 
@@ -62,15 +62,15 @@ function install_yaourt(){
 
 function install_transmission_seedbox(){
 	echo -e "Installing Transmission"
-	pacman -S transmission-cli > /dev/null
+	pacman -S transmission-cli > /dev/null 2>&1
 	usermod -aG users transmission
 	lsblk
-	echo -e "Select the drive to be used: (ex:/dev/sda1,/dev/sda2)"
+	echo -e "Select the drive to be used: (ex:/dev/sda1,\e[1m/dev/sda2\e[21m)"
 	read external_drive
-	external_drive = {external_drive:="/dev/sda2"}
+	external_drive=${external_drive:="/dev/sda2"}
 	echo -e "Provide torrent download folder (ex: /media/data,\e[1m/mnt/downloads\e[21m):"
 	read torrent_download_folder
-	torrent_download_folder={torrent_download_folder:="/media/data"}
+	torrent_download_folder=${torrent_download_folder:="/media/data"}
 	mkdir -p $torrent_download_folder
 	make_mount
 }
@@ -98,7 +98,7 @@ function update_pacman(){
 
 function update_user_config(){
 	local user
-	read -p "Enter username[alarm]:"
+	read -p "Enter username[\e[1malarm\e[21m]:"
 	user=${user:="alarm"}
 	usermod -aG users,lp,network,video,audio,storage "$user"
 	chfn "$user"
@@ -119,14 +119,14 @@ function move_root(){
 	$newroot=/mnt/newroot
 	sudo mkdir $newroot
 	lsblk
-	echo -e "Choose new root (ex: /dev/sda1):"
+	echo -e "Choose new root (ex: \e[1m/dev/sda1\e[21m):"
 	read newrootdevice
-	newroot={newrootdevice:=/dev/sda1}
+	newroot=${newrootdevice:=/dev/sda1}
 	echo -e "Formatting new root"
 	mkfs.ext4 -L "armroot_overlay" $newrootdevice
 	echo -e "Mounting new root"
 	mount $newrootdevice $newroot
-	rsync -axS / $newroot
+	rsync -avxS / $newroot > ~/.newroot.log
 	cp /boot/cmdline.txt /boot/cmdline.txt.bak
 	sed -i /boot/cmdline.txt 's/root=\/dev\/mmcblk0p2/root=${newrootdevice}/'
 	sed -i /boot/cmdline.txt 's/elevator=noop//'
