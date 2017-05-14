@@ -123,7 +123,7 @@ function basic_setup(){
 	echo -e "Setting timezone"
 	timedatectl set-local-rtc 0
 	local timezone
-	read -p "Enter a timezone(ex. \e[1mAsia/Kolkata\e[21m):" timezone
+	read -p "Enter a timezone(ex. Asia/Kolkata):" timezone
 	timezone=${timezone:="Asia/Kolkata"}
 	echo -e "$timezone" > /etc/timezone
 	systemctl enable ntpd.service
@@ -137,13 +137,13 @@ function basic_setup(){
 	sed -i '/%wheel ALL=(ALL) NOPASSWD: ALL/s/^#//' /etc/sudoers
 	
 	local hostname
-	read -p "Enter hostname(ex. \e[1malarmpi\e[21m):" hostname
+	read -p "Enter hostname(ex. alarmpi):" hostname
 	hostname=${hostname:=alarmpi}
 	hostnamectl set-hostname hostname
 
 	local user
 	userdel alarm
-	read -p "Enter username[\e[1mpi\e[21m,alarm]:" user
+	read -p "Enter username[pi,alarm]:" user
 	user=${user:="pi"}
 	if grep -c "$user" /etc/group; then
 		update_user_config $user
