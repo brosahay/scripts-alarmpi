@@ -7,7 +7,7 @@ STD='\033[0;0;39m'
 RELEASE="2>&1"
 DEBUG=""
 
-DFLAG=DEBUG
+DFLAG=$DEBUG
 
 function pause(){
   read -p "Press [Enter] key to continue..." fackEnterKey
@@ -120,9 +120,10 @@ function basic_setup(){
 	echo -e "Enter new root password:" 
 	passwd
 
+	echo -e "Setting timezone"
 	timedatectl set-local-rtc 0
 	local timezone
-	read timezone -p "Enter a timezone(ex. \e[1mAsia/Kolkata\e[21m):"
+	read -p "Enter a timezone(ex. \e[1mAsia/Kolkata\e[21m):" timezone
 	timezone=${timezone:="Asia/Kolkata"}
 	echo -e "$timezone" > /etc/timezone
 	systemctl enable ntpd.service
@@ -136,13 +137,13 @@ function basic_setup(){
 	sed -i '/%wheel ALL=(ALL) NOPASSWD: ALL/s/^#//' /etc/sudoers
 	
 	local hostname
-	read hostname -p "Enter hostname(ex. \e[1malarmpi\e[21m):"
+	read -p "Enter hostname(ex. \e[1malarmpi\e[21m):" hostname
 	hostname=${hostname:=alarmpi}
 	hostnamectl set-hostname hostname
 
 	local user
 	userdel alarm
-	read user -p "Enter username[\e[1mpi\e[21m,alarm]:"
+	read -p "Enter username[\e[1mpi\e[21m,alarm]:" user
 	user=${user:="pi"}
 	if grep -c "$user" /etc/group; then
 		update_user_config $user
@@ -152,12 +153,12 @@ function basic_setup(){
 	fi
 
 	local response;
-	read response -p "Install zsh?"
+	read -p "Install zsh?" response
 	if echo "$response" | grep -iq "^y"; then
 		install_zsh $user
 	fi
 	
-	read response -p "Do you want to setup WiFi now?"
+	read -p "Do you want to setup WiFi now?" response
 	if echo "$response" | grep -iq "^y"; then
 		wifi-menu -o
 	fi
@@ -186,8 +187,7 @@ function move_root(){
 	$newroot=/mnt/newroot
 	sudo mkdir $newroot
 	lsblk
-	echo -e "Choose new root (ex: \e[1m/dev/sda1\e[21m):"
-	read newrootdevice
+	read -p -e "Choose new root (ex: \e[1m/dev/sda1\e[21m):" newrootdevice
 	newroot=${newrootdevice:=/dev/sda1}
 	echo -e "Formatting new root"
 	mkfs.ext4 -L "armroot_overlay" $newrootdevice
@@ -223,9 +223,9 @@ function read_options(){
 		*)echo -e "$RED \e[1mERROR:\e[21m $STD INVALID SELECTION" && sleep 2
 	esac	
 }
-
+if $DFLAG;then
 trap '' SIGINT SIGQUIT SIGTSTP
-
+fi
 #main function
 [ "$UID" -eq 0 ] || exec su --command="sh $0 $@"
 
