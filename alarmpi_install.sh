@@ -139,7 +139,7 @@ function basic_setup(){
 	local hostname
 	read -p "Enter hostname(ex. alarmpi):" hostname
 	hostname=${hostname:=alarmpi}
-	hostnamectl set-hostname hostname
+	hostnamectl set-hostname $hostname
 
 	local user
 	userdel alarm
@@ -223,9 +223,7 @@ function read_options(){
 		*)echo -e "$RED \e[1mERROR:\e[21m $STD INVALID SELECTION" && sleep 2
 	esac	
 }
-if $DFLAG;then
-trap '' SIGINT SIGQUIT SIGTSTP
-fi
+#trap '' SIGINT SIGQUIT SIGTSTP
 #main function
 [ "$UID" -eq 0 ] || exec su --command="sh $0 $@"
 
