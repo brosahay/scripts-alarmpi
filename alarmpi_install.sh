@@ -45,10 +45,10 @@ function install_zsh(){
 	usermod -s /bin/zsh "$1"
 }
 
-function install_raspi-config(){
+function install_raspiconfig(){
 	echo -e "Downloading Raspi-Config"
 	wget https://raw.githubusercontent.com/revosftw/alarmpi_box/master/raspi-config --output-document=/usr/bin/raspi-config
-	chmod +x /usr/bin/raspi-config
+	chmod +x /usr/bin/raspi-config;
 	echo -e "Installed Raspi-Config"
 }
 
@@ -211,7 +211,7 @@ function read_options(){
 		1)install_base;basic_setup;install_wifi;update_user_config;;
 		2)install_transmission_seedbox;;
 		3)install_python2;;
-		4)install_raspi-config;;
+		4)install_raspiconfig;;
 		8)move_root;;
 		9)overclock_raspberrypi;;
 		0)exit 0;;
