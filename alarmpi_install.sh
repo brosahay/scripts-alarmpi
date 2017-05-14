@@ -99,7 +99,7 @@ function update_pacman(){
 function update_user_config(){
 	local user
 	read -p "Enter username[alarm]:"
-	user={user:="alarm"}
+	user=${user:="alarm"}
 	usermod -aG users,lp,network,video,audio,storage "$user"
 	chfn "$user"
 	passwd "$user"
