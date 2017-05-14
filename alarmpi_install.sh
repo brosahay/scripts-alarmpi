@@ -40,6 +40,13 @@ function install_base(){
 	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g > /dev/null 2>&1
 }
 
+function install_raspi-config(){
+	echo -e "Downloading Raspi-Config"
+	wget https://raw.githubusercontent.com/revosftw/alarmpi_box/master/raspi-config --output-document=/usr/bin/raspi-config
+	chmod +x /usr/bin/raspi-config
+	echo -e "Installed Raspi-Config"
+}
+
 function install_python2(){
 	echo -e "Installing python2"
 	pacman --noconfirm --needed -S python2 python2-pip python2-lxml > /dev/null 2>&1
@@ -136,6 +143,7 @@ function show_options(){
 	echo -e "\e[1m[1]\e[21mSetup Raspberry Pi"
 	echo -e "\e[1m[2]\e[21mInstall Transmission"
 	echo -e "\e[1m[3]\e[21mInstall Python2"
+	echo -e "\e[1m[4]\e[21mInstall Raspi-Config"
 	echo -e "\e[1m[8]\e[21mMove Root to XHD"
 	echo -e "\e[1m[9]\e[21mOverclock the Pi"
 	echo -e "\e[1m[0]\e[21mExit"
@@ -148,6 +156,7 @@ function read_options(){
 		1)change_root_password;install_base;install_wifi;update_user_config;;
 		2)install_transmission_seedbox;;
 		3)install_python2;;
+		4)install_raspi-config;;
 		8)move_root;;
 		9)overclock_raspberrypi;;
 		0)exit 0;;
