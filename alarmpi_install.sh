@@ -8,19 +8,9 @@ function pause(){
   read -p "Press [Enter] key to continue..." fackEnterKey
 }
 
-function change_root_password(){
-	echo -e "Enter new root password:" 
-	passwd
-}
-
 function install_wifi(){
 	echo -e "Installing WiFi related packages"
-	pacman -S dialog wpa_supplicant --noconfirm --needed > /dev/null 2>&1
-	echo -e "Do you want to setup WiFi now? [Y/N]"
-	read response
-	if echo "$response" | grep -iq "^y"; then
-		wifi-menu -o
-	fi
+	pacman -S dialog wpa_supplicant wireless_tools iw crda lshw --noconfirm --needed > /dev/null 2>&1
 	echo -e "WiFi installed"
 }
 
@@ -33,11 +23,26 @@ function install_audio(){
 function install_base(){
 	echo -e "Updating package databases"
 	pacman -Syu --noconfirm > /dev/null 2>&1
+	pacman -Sy pacman > /dev/null 2>&1
+	pacman-key --init > /dev/null 2>&1
+	pacman -S archlinux-keyring > /dev/null 2>&1
+	pacman-key --populate archlinux > /dev/null 2>&1
+	pacman -Syu --ignore filesystem > /dev/null 2>&1
+	pacman -S filesystem --force > /dev/null 2>&1
 	echo -e "Installing base packages"
-	pacman --noconfirm --needed -S base-devel vim zsh wget libnewt diffutils htop ntp packer > /dev/null 2>&1
-	update_pacman
+	pacman --noconfirm --needed -S base-devel vim wget libnewt diffutils htop ntp packer > /dev/null 2>&1
 	echo -e "Installing filesystems"
 	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g > /dev/null 2>&1
+}
+
+function install_zsh(){
+	echo -e "Installing ZSH"
+	pacman -S zsh --noconfirm --needed > /dev/null 2>&1
+	echo -e "Installing grml-zsh"
+	wget -O /home/"$1"/.zshrc http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc  > /dev/null 2>&1
+	wget -O /home/"$1"/.zshrc.local  http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc  > /dev/null 2>&1
+	chown /home/"$1"/.zshrc* "$1:$1"
+	usermod -s /bin/zsh "$1"
 }
 
 function install_raspi-config(){
@@ -85,6 +90,13 @@ function install_transmission_seedbox(){
 	make_mount
 }
 
+function install_wiringPi(){
+	git clone git://git.drogon.net/wiringPi /opt/wiringpi
+	sh /opt/wiringpi/build
+	gpio -v
+	gpio readall
+}
+
 function make_mount(){
 	what="$external_drive"
 	where="$torrent_download_folder"
@@ -99,18 +111,58 @@ function make_mount(){
 			 \nOptions=defaults" > /etc/systemd/system/media-data.mount
 }
 
-function update_pacman(){
+function basic_setup(){
+	echo -e "Enter new root password:" 
+	passwd
+
+	timedatectl set-local-rtc 0
+	local timezone
+	read timezone -p "Enter a timezone(ex. \e[1mAsia/Kolkata\e[21m):"
+	timezone=${timezone:="Asia/Kolkata"}
+	echo -e "$timezone" > /etc/timezone
+	systemctl enable ntpd.service
+	systemctl start ntpd.service
+	
 	echo -e "Setting options for pacman"
-	sed -i 's/#Color/Color/' /etc/pacman.conf
+	sed -i '/Color/s/^#//' /etc/pacman.conf
 	sed -i 's/#XferCommand = \/usr\/bin\/wget --passive-ftp -c -O %o %u/XferCommand = \/usr\/bin\/wget --passive-ftp -c -q --show-progress -O \x27%o\x27 \x27%u\x27/' /etc/pacman.conf
+	
+	echo "Root Priviledges"
+	sed -i '/%wheel ALL=(ALL) NOPASSWD: ALL/s/^#//' /etc/sudoers
+	
+	local hostname
+	read hostname -p "Enter hostname(ex. \e[1malarmpi\e[21m):"
+	hostname=${hostname:=alarmpi}
+	hostnamectl set-hostname hostname
+
+	local user
+	userdel alarm
+	read user -p "Enter username[\e[1mpi\e[21m,alarm]:"
+	user=${user:="pi"}
+	if grep -c "$user" /etc/group; then
+		update_user_config $user
+	else
+		useradd -d /home/$user -m -G wheel,rvmu,sers,lp,network,video,audio,storage -s /bin/bash $user
+		update_user_config $user
+	fi
+
+	local response;
+	read response -p "Install zsh?"
+	if echo "$response" | grep -iq "^y"; then
+		install_zsh $user
+	fi
+	
+	read response -p "Do you want to setup WiFi now?"
+	if echo "$response" | grep -iq "^y"; then
+		wifi-menu -o
+	fi
+
+	pacman -Scc
 }
 
-
 function update_user_config(){
-	local user
-	read -p "Enter username[\e[1malarm\e[21m]:"
-	user=${user:="alarm"}
-	usermod -aG users,lp,network,video,audio,storage "$user"
+	local user=$1
+	usermod -aG wheel,rvm,users,lp,network,video,audio,storage "$user"
 	chfn "$user"
 	passwd "$user"
 }
@@ -156,7 +208,7 @@ function read_options(){
 	local choice
 	read -p "Enter choice:" choice
 	case $choice in
-		1)change_root_password;install_base;install_wifi;update_user_config;;
+		1)install_base;basic_setup;install_wifi;update_user_config;;
 		2)install_transmission_seedbox;;
 		3)install_python2;;
 		4)install_raspi-config;;
