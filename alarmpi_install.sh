@@ -27,13 +27,13 @@ function install_audio(){
 
 function install_base(){
 	echo -e "Updating package databases"
-	pacman -Syu --noconfirm > /dev/null "$DFLAG"
-	pacman -Sy pacman > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -Syu > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -Sy pacman > /dev/null "$DFLAG"
 	pacman-key --init > /dev/null "$DFLAG"
-	pacman -S archlinux-keyring > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -S archlinux-keyring > /dev/null "$DFLAG"
 	pacman-key --populate archlinux > /dev/null "$DFLAG"
-	pacman -Syu --ignore filesystem > /dev/null "$DFLAG"
-	pacman -S filesystem --force > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -Syu --ignore filesystem > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -S filesystem --force > /dev/null "$DFLAG"
 	echo -e "Installing base packages"
 	pacman --noconfirm --needed -S base-devel vim wget libnewt diffutils htop ntp packer > /dev/null "$DFLAG"
 	echo -e "Installing filesystems"
@@ -42,7 +42,7 @@ function install_base(){
 
 function install_zsh(){
 	echo -e "Installing ZSH"
-	pacman -S zsh --noconfirm --needed > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -S zsh > /dev/null "$DFLAG"
 	echo -e "Installing grml-zsh"
 	wget -O /home/"$1"/.zshrc "http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc"  > /dev/null "$DFLAG"
 	wget -O /home/"$1"/.zshrc.local  "http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc"  > /dev/null "$DFLAG"
@@ -79,7 +79,7 @@ function install_yaourt(){
 
 function install_transmission_seedbox(){
 	echo -e "Installing Transmission"
-	pacman -S transmission-cli > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -S transmission-cli > /dev/null "$DFLAG"
 	usermod -aG users transmission
 
 	lsblk
