@@ -87,7 +87,7 @@ function install_transmission_seedbox(){
 	read external_drive
 	external_drive=${external_drive:="/dev/sda2"}
 	
-	echo -e "Provide torrent download folder (ex: /media/data,\e[1m/mnt/downloads\e[21m):"
+	echo -e "Provide torrent download folder (ex: \e[1m/media/data\e[21m,/mnt/downloads):"
 	read torrent_download_folder
 	torrent_download_folder=${torrent_download_folder:="/media/data"}
 	mkdir -p $torrent_download_folder
@@ -105,15 +105,8 @@ function install_wiringPi(){
 function make_mount(){
 	what="$external_drive"
 	where="$torrent_download_folder"
-	partition_type=blkid -s TYPE "$what" | grep -o '"[^"]*"' | sed 's/\"//g'
-	echo -e "[Unit]
-			 \nDescription=xHD mount script
-			 \n
-			 \n[Mount]
-			 \nWhat=$what
-			 \nWhere=$where
-			 \nType=$partition_type
-			 \nOptions=defaults" > /etc/systemd/system/media-data.mount
+	partition_type=sudo blkid -s TYPE "$what" | grep -o '"[^"]*"' | sed 's/\"//g'
+	echo -e "[Unit]\nDescription=xHD mount script\n\n[Mount]\nWhat=$what\nWhere=$where\nType=$partition_type\nOptions=defaults,gid=users,dmask=002,fmask=002" > /etc/systemd/system/media-data.mount
 }
 
 function basic_setup(){
@@ -177,12 +170,12 @@ function update_user_config(){
 
 function overclock_raspberrypi(){
 	echo -e "##OVERCLOCKING##
-			 \narm_freq=800
-			 \narm_freq_min=100
-			 \ncore_freq=300
-			 \ncore_freq_min=75
-			 \nsdram_freq=400
-			 \nover_voltage=0" >> /boot/config.txt
+			 arm_freq=800
+			 arm_freq_min=100
+			 core_freq=300
+			 core_freq_min=75
+			 sdram_freq=400
+			 over_voltage=0" >> /boot/config.txt
 }
 
 function move_root(){
