@@ -1,4 +1,4 @@
-# ![alt text](./raspi.png =48px"Raspberry Pi")ArchLinux Raspberry Pi Automated Setup
+# <img src="./raspi.png" width="48px">ArchLinux Raspberry Pi Automated Setup
 Automated Script for setup of Raspberry Pi running ArchLinuxARM
 ```bash
 $ curl -L https://raw.githubusercontent.com/revosftw/alarmpi_box/master/alarmpi_install.sh --output /tmp/install.sh
