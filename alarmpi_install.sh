@@ -44,15 +44,15 @@ function install_zsh(){
 	echo -e "Installing ZSH"
 	pacman --noconfirm --needed -S zsh > /dev/null "$DFLAG"
 	echo -e "Installing grml-zsh"
-	wget -O /home/"$1"/.zshrc "http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc"  > /dev/null "$DFLAG"
-	wget -O /home/"$1"/.zshrc.local  "http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc"  > /dev/null "$DFLAG"
+	curl -L "http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc" --output /home/"$1"/.zshrc  > /dev/null "$DFLAG"
+	curl -L "http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc" --output /home/"$1"/.zshrc.local > /dev/null "$DFLAG"
 	chown /home/"$1"/.zshrc* "$1:$1"
 	usermod -s /bin/zsh "$1"
 }
 
 function install_raspiconfig(){
 	echo -e "Downloading Raspi-Config"
-	wget https://raw.githubusercontent.com/revosftw/alarmpi_box/master/raspi-config --output-document=/usr/bin/raspi-config
+	curl -L https://raw.githubusercontent.com/revosftw/alarmpi_box/master/raspi-config --output /usr/bin/raspi-config
 	chmod +x /usr/bin/raspi-config;
 	echo -e "Installed Raspi-Config"
 }
