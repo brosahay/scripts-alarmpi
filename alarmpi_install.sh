@@ -179,19 +179,21 @@ function overclock_raspberrypi(){
 }
 
 function move_root(){
-	$newroot=/mnt/newroot
-	sudo mkdir $newroot
+	newroot="/mnt/newroot"
+	sudo mkdir "$newroot"
 	lsblk
-	read -p -e "Choose new root (ex: \e[1m/dev/sda1\e[21m):" newrootdevice
-	newroot=${newrootdevice:=/dev/sda1}
+	echo -e "Choose new root (ex: \e[1m/dev/sda1\e[21m):"
+	read newrootdevice
+	newrootdevice=${newrootdevice:="/dev/sda1"}
 	echo -e "Formatting new root"
 	mkfs.ext4 -L "armroot_overlay" $newrootdevice
 	echo -e "Mounting new root"
-	mount $newrootdevice $newroot
-	rsync -avxS / $newroot > ~/.newroot.log
+	mount "$newrootdevice" "$newroot"
+	rsync -avxS --info=progress2 / "$newroot"
 	cp /boot/cmdline.txt /boot/cmdline.txt.bak
 	sed -i /boot/cmdline.txt 's/root=\/dev\/mmcblk0p2/root=${newrootdevice}/'
 	sed -i /boot/cmdline.txt 's/elevator=noop//'
+	umount "$newroot"
 }
 
 function show_options(){
