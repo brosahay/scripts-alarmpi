@@ -36,17 +36,19 @@ prepare_mmc () {
 	sudo mkfs.ext4 -L "arm_root" "/dev/${partitions[1]}"
 	mkdir root
 	sudo mount "/dev/${partitions[1]}" root
-	echo -e "Mounted /root partition"	
+	echo -e "Mounted /root partition"
 }
 
-download_archlinx () {
+download_archlinux () {
 	echo -e "Searching for ArchLinuxARM-$1-latest.tar.gz"
 	ls|grep -qs "ArchLinuxARM-$1"
 	response=${response:="y"}
 	if ls|grep -qsc "ArchLinuxARM-$1"; then
-	echo -e "Found. Use old copy of ArchLinuxARM ? [\e[1mY\e[21m/n]"
-	read response
-	response=${response:="y"}
+		echo -e "Found. Use old copy of ArchLinuxARM ? [\e[1mY\e[21m/n]"
+		read response
+		response=${response:="y"}
+	else
+		wget -q --show-progress --continue "http://archlinuxarm.org/os/ArchLinuxARM-$1-latest.tar.gz"
 	fi
 	if echo "$response" | grep -iq "^n"; then
 		wget -q --show-progress --continue "http://archlinuxarm.org/os/ArchLinuxARM-$1-latest.tar.gz"
@@ -55,7 +57,7 @@ download_archlinx () {
 
 write_to_mmc () {
 	echo -e "Extracting image to SD CARD"
-	sudo su -c 'bsdtar -xpf ArchLinuxARM-$1-latest.tar.gz -C root'
+	sudo su -c "bsdtar -xpf ArchLinuxARM-$1-latest.tar.gz -C root"
 	sudo su -c 'sync'
 
 	echo -e "Finalizing boot partition"
@@ -63,13 +65,14 @@ write_to_mmc () {
 	sudo umount boot root
 	sudo su -c "rm -rf boot root"
 	echo -e "SD CARD ready to boot with ArchLinuxARM."
-	echo -e "Default SSH credentials:\n\t\tusername:alarm\n\t\tpassword:alarm\n\t\troot-password: root"	
+	echo -e "Default SSH credentials:\n\t\tusername:alarm\n\t\tpassword:alarm\n\t\troot-password: root"
 }
 
 [ "$UID" -eq 0 ] || exec sudo sh "$0" "$@"
 echo -e "\nSelect Raspberry Pi Version (ex: rpi rpi-2)[\e[1mrpi-2\e[21m]:"
 read raspberrypi_version
 raspberrypi_version=${raspberrypi_version:="rpi-2"}
-download_archlinx $raspberrypi_version
+
+download_archlinux $raspberrypi_version
 prepare_mmc
 write_to_mmc $raspberrypi_version
