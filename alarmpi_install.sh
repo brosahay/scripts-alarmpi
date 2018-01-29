@@ -194,6 +194,7 @@ function move_root(){
 	mkfs.ext4 -L "armroot_overlay" $newrootdevice
 	echo -e "Mounting new root"
 	mount "$newrootdevice" "$newroot"
+  pacman --noconfirm --needed -S rsync
 	rsync -avxS --info=progress2 exclude="$newroot" / $newroot
 	cp /boot/cmdline.txt /boot/cmdline.txt.bak
 	sed 's/root=\/dev\/mmcblk0p2/root=${newrootdevice}/' -i /boot/cmdline.txt
