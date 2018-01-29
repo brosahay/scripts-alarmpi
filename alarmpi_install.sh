@@ -197,9 +197,10 @@ function move_root(){
   pacman --noconfirm --needed -S rsync
 	rsync -avxS --info=progress2 exclude="$newroot" / $newroot
 	cp /boot/cmdline.txt /boot/cmdline.txt.bak
-	sed 's/root=\/dev\/mmcblk0p2/root=${newrootdevice}/' -i /boot/cmdline.txt
+	sed "s/root=\/dev\/mmcblk0p2/root=$newrootdevice/" -i /boot/cmdline.txt
 	sed 's/elevator=noop//' -i /boot/cmdline.txt
 	umount "$newroot"
+  rm -rf ${newroot}
 }
 
 function show_options(){
