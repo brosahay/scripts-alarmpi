@@ -96,7 +96,7 @@ function install_transmission_seedbox(){
 	read torrent_download_folder
 	torrent_download_folder=${torrent_download_folder:="/media/data"}
 	mkdir -p $torrent_download_folder
-	
+
 	make_mount
 }
 
@@ -196,8 +196,8 @@ function move_root(){
 	mount "$newrootdevice" "$newroot"
 	rsync -avxS --info=progress2 exclude="$newroot" / $newroot
 	cp /boot/cmdline.txt /boot/cmdline.txt.bak
-	sed -i /boot/cmdline.txt 's/root=\/dev\/mmcblk0p2/root=${newrootdevice}/'
-	sed -i /boot/cmdline.txt 's/elevator=noop//'
+	sed 's/root=\/dev\/mmcblk0p2/root=${newrootdevice}/' -i /boot/cmdline.txt
+	sed 's/elevator=noop//' -i /boot/cmdline.txt
 	umount "$newroot"
 }
 
