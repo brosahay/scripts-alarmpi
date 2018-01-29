@@ -9,7 +9,7 @@
 RED='\033[0;41;30m'
 STD='\033[0;0;39m'
 
-RELEASE="2>&1"
+RELEASE=" > /dev/null 2>&1"
 DEBUG=""
 
 DFLAG=$DEBUG
@@ -20,37 +20,37 @@ function pause(){
 
 function install_wifi(){
 	echo -e "Installing WiFi related packages"
-	pacman -S dialog wpa_supplicant wireless_tools iw crda lshw --noconfirm --needed > /dev/null "$DFLAG"
+	pacman -S dialog wpa_supplicant wireless_tools iw crda lshw --noconfirm --needed ${DFLAG}
 	echo -e "WiFi installed"
 }
 
 function install_audio(){
 	echo -e "Installing audio realted packages"
-	pacman -S alsa-utils alsa-firmware alsa-lib alsa-plugins > /dev/null "$DFLAG"
+	pacman -S alsa-utils alsa-firmware alsa-lib alsa-plugins ${DFLAG}
 	echo -e "Audio installed"
 }
 
 function install_base(){
 	echo -e "Updating package databases"
-	pacman --noconfirm --needed -Syu > /dev/null "$DFLAG"
-	pacman --noconfirm --needed -Sy pacman > /dev/null "$DFLAG"
-	pacman-key --init > /dev/null "$DFLAG"
-	pacman --noconfirm --needed -S archlinux-keyring > /dev/null "$DFLAG"
-	pacman-key --populate archlinux > /dev/null "$DFLAG"
-	pacman --noconfirm --needed -Syu --ignore filesystem > /dev/null "$DFLAG"
-	pacman --noconfirm --needed -S filesystem --force > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -Syu ${DFLAG}
+	pacman --noconfirm --needed -Sy pacman ${DFLAG}
+	pacman-key --init ${DFLAG}
+	pacman --noconfirm --needed -S archlinux-keyring ${DFLAG}
+	pacman-key --populate archlinux ${DFLAG}
+	pacman --noconfirm --needed -Syu --ignore filesystem ${DFLAG}
+	pacman --noconfirm --needed -S filesystem --force ${DFLAG}
 	echo -e "Installing base packages"
-	pacman --noconfirm --needed -S base-devel vim wget libnewt diffutils htop ntp packer > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -S base-devel vim wget libnewt diffutils htop ntp packer ${DFLAG}
 	echo -e "Installing filesystems"
-	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -S filesystem nfs-utils autofs ntfs-3g ${DFLAG}
 }
 
 function install_zsh(){
 	echo -e "Installing ZSH"
-	pacman --noconfirm --needed -S zsh > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -S zsh ${DFLAG}
 	echo -e "Installing grml-zsh"
-	curl -L "http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc" --output /home/"$1"/.zshrc  > /dev/null "$DFLAG"
-	curl -L "http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc" --output /home/"$1"/.zshrc.local > /dev/null "$DFLAG"
+	curl -L "http://git.grml.org/f/grml-etc-core/etc/zsh/zshrc" --output /home/"$1"/.zshrc  ${DFLAG}
+	curl -L "http://git.grml.org/f/grml-etc-core/etc/skel/.zshrc" --output /home/"$1"/.zshrc.local ${DFLAG}
 	chown /home/"$1"/.zshrc* "$1:$1"
 	usermod -s /bin/zsh "$1"
 }
@@ -64,7 +64,7 @@ function install_raspiconfig(){
 
 function install_python2(){
 	echo -e "Installing python2"
-	pacman --noconfirm --needed -S python2 python2-pip python2-lxml > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -S python2 python2-pip python2-lxml ${DFLAG}
 	pip2 install mitmproxy
 }
 
@@ -84,14 +84,14 @@ function install_yaourt(){
 
 function install_transmission_seedbox(){
 	echo -e "Installing Transmission"
-	pacman --noconfirm --needed -S transmission-cli > /dev/null "$DFLAG"
+	pacman --noconfirm --needed -S transmission-cli ${DFLAG}
 	usermod -aG users transmission
 
 	lsblk
 	echo -e "Select the drive to be used: (ex:/dev/sda1,\e[1m/dev/sda2\e[21m)"
 	read external_drive
 	external_drive=${external_drive:="/dev/sda2"}
-	
+
 	echo -e "Provide torrent download folder (ex: \e[1m/media/data\e[21m,/mnt/downloads):"
 	read torrent_download_folder
 	torrent_download_folder=${torrent_download_folder:="/media/data"}
@@ -115,7 +115,7 @@ function make_mount(){
 }
 
 function basic_setup(){
-	echo -e "Enter new root password:" 
+	echo -e "Enter new root password:"
 	passwd
 
 	echo -e "Setting timezone"
@@ -126,14 +126,14 @@ function basic_setup(){
 	echo -e "$timezone" > /etc/timezone
 	systemctl enable ntpd.service
 	systemctl start ntpd.service
-	
+
 	echo -e "Setting options for pacman"
 	sed -i '/Color/s/^#//' /etc/pacman.conf
 	sed -i 's/#XferCommand = \/usr\/bin\/wget --passive-ftp -c -O %o %u/XferCommand = \/usr\/bin\/wget --passive-ftp -c -q --show-progress -O \x27%o\x27 \x27%u\x27/' /etc/pacman.conf
-	
+
 	echo "Root Priviledges"
 	sed -i '/%wheel ALL=(ALL) NOPASSWD: ALL/s/^#//' /etc/sudoers
-	
+
 	local hostname
 	read -p "Enter hostname(ex. alarmpi):" hostname
 	hostname=${hostname:=alarmpi}
@@ -156,7 +156,7 @@ function basic_setup(){
 	if echo "$response" | grep -iq "^y"; then
 		install_zsh $user
 	fi
-	
+
 	read -p "Do you want to setup WiFi now?" response
 	if echo "$response" | grep -iq "^y"; then
 		wifi-menu -o
@@ -223,7 +223,7 @@ function read_options(){
 		9)overclock_raspberrypi;;
 		0)exit 0;;
 		*)echo -e "$RED \e[1mERROR:\e[21m $STD INVALID SELECTION" && sleep 2
-	esac	
+	esac
 }
 #trap '' SIGINT SIGQUIT SIGTSTP
 #main function
