@@ -2,6 +2,6 @@
 
 ######################################################################
 #
-#  Copyright (c) 2017 revosftw (https://github.com/revosftw)
+#  Copyright (c) 2018 revosftw (https://github.com/revosftw)
 #
 ######################################################################
