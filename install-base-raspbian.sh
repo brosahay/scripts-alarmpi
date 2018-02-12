@@ -169,13 +169,13 @@ function newRootfs() {
 	echo -e "Formatting new root"
 	mkfs.ext4 -L "armroot_overlay" ${newrootdevice}
 	echo -e "Mounting new root"
-	mount ${newrootdevice} ${newroot}
-	rsync -avxS / ${newroot}
+	sudo mount ${newrootdevice} ${newroot}
+	sudo rsync -avxS / ${newroot}
 	cp /boot/cmdline.txt /boot/cmdline.txt.bak
-	sed "s/root=\/dev\/mmcblk0p2/root=${newrootdevice}/" -i /boot/cmdline.txt
-	sed "s/elevator=noop//" -i /boot/cmdline.txt
-	umount ${newroot}
-  rm -rf ${newroot}
+	sudo sed "s/root=\/dev\/mmcblk0p2/root=${newrootdevice}/" -i /boot/cmdline.txt
+	sudo sed 's/elevator=noop//' -i /boot/cmdline.txt
+	sudo umount ${newroot}
+  sudo rm -rf ${newroot}
 }
 
 function checkMountPoint() {
