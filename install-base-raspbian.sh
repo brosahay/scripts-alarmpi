@@ -167,7 +167,7 @@ function newRootfs() {
 	read newrootdevice
 	newrootdevice=${newrootdevice:="/dev/sda1"}
 	echo -e "Formatting new root"
-	mkfs.ext4 -L "armroot_overlay" ${newrootdevice}
+	sudo mkfs.ext4 -L "armroot_overlay" ${newrootdevice}
 	echo -e "Mounting new root"
 	sudo mount ${newrootdevice} ${newroot}
 	sudo rsync -avxS / ${newroot}
