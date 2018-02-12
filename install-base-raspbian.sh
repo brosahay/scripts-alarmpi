@@ -170,12 +170,20 @@ function newRootfs() {
 	mkfs.ext4 -L "armroot_overlay" ${newrootdevice}
 	echo -e "Mounting new root"
 	mount ${newrootdevice} ${newroot}
-	rsync -avxS --info=progress2 exclude=${newroot} / ${newroot}
+	rsync -avxS / ${newroot}
 	cp /boot/cmdline.txt /boot/cmdline.txt.bak
 	sed "s/root=\/dev\/mmcblk0p2/root=${newrootdevice}/" -i /boot/cmdline.txt
 	sed "s/elevator=noop//" -i /boot/cmdline.txt
 	umount ${newroot}
   rm -rf ${newroot}
+}
+
+function checkMountPoint() {
+    if grep -qs '$1' /proc/mounts; then
+        echo "It's mounted."
+    else
+        echo "It's not mounted."
+    fi
 }
 
 function showOptions() {
