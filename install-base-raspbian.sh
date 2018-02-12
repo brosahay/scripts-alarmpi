@@ -188,12 +188,12 @@ function checkMountPoint() {
 
 function showOptions() {
   echo -e "######Raspbian Installer######"
-  echo -e "\e[1m[1]\e[21m setup raspberry pi"
-	# echo -e "\e[1m[2]\e[21mInstall Transmission"
-	# echo -e "\e[1m[3]\e[21mInstall Python2"
-	# echo -e "\e[1m[4]\e[21mInstall Raspi-Config"
-	echo -e "\e[1m[8]\e[21m move rootfs to external storage"
-	echo -e "\e[1m[0]\e[21m exit"
+  echo -e "[1] setup raspberry pi"
+	# echo -e "[2]Install Transmission"
+	# echo -e "[3]Install Python2"
+	# echo -e "[4]Install Raspi-Config"
+	echo -e "[8] move rootfs to external storage"
+	echo -e "[0] exit"
 }
 
 function readOptions(){
@@ -207,7 +207,7 @@ function readOptions(){
 		8)newRootfs;;
 		9);;
 		0)exit 0;;
-		*)echo -e "$RED \e[1mERROR:\e[21m $STD INVALID SELECTION" && sleep 2;;
+		*)echo -e "$RED ERROR: $STD INVALID SELECTION" && sleep 2;;
 	esac
 }
 
