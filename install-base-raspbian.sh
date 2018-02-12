@@ -163,7 +163,7 @@ function newRootfs() {
   newroot="/mnt/newroot"
 	sudo mkdir ${newroot}
 	lsblk
-	echo -e "Choose new root (ex: \e[1m/dev/sda1\e[21m):"
+	echo -e "Choose new root (ex: /dev/sda1):"
 	read newrootdevice
 	newrootdevice=${newrootdevice:="/dev/sda1"}
 	echo -e "Formatting new root"
