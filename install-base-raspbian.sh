@@ -171,11 +171,16 @@ function newRootfs() {
 	echo -e "Mounting new root"
 	sudo mount ${newrootdevice} ${newroot}
 	sudo rsync -avxS / ${newroot}
-	cp /boot/cmdline.txt /boot/cmdline.txt.bak
+  echo -e "Finished copying root data"
+  echo -e "Edit boot files to enable booting from harddrive"
+	sudo cp /boot/cmdline.txt /boot/cmdline.txt.bak
 	sudo sed "s/root=\/dev\/mmcblk0p2/root=${newrootdevice}/" -i /boot/cmdline.txt
 	sudo sed 's/elevator=noop//' -i /boot/cmdline.txt
+  sudo sync
+  echo -e "Unmounting new rootfs"
 	sudo umount ${newroot}
   sudo rm -rf ${newroot}
+  echo -e "Finished preparing new root"
 }
 
 function checkMountPoint() {
@@ -189,9 +194,9 @@ function checkMountPoint() {
 function showOptions() {
   echo -e "######Raspbian Installer######"
   echo -e "[1] setup raspberry pi"
-	# echo -e "[2]Install Transmission"
-	# echo -e "[3]Install Python2"
-	# echo -e "[4]Install Raspi-Config"
+	# echo -e "[2] install transmission"
+	# echo -e "[3] install python2"
+	# echo -e "[4] install ZSH shell"
 	echo -e "[8] move rootfs to external storage"
 	echo -e "[0] exit"
 }
