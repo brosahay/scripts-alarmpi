@@ -201,7 +201,7 @@ function showOptions() {
 	echo -e "[0] exit"
 }
 
-function readOptions(){
+function readOptions() {
 	local choice
 	read -p "Enter choice:" choice
 	case $choice in
@@ -216,15 +216,17 @@ function readOptions(){
 	esac
 }
 
-while true;
-do
-	showOptions
-  readOptions
-done
+function main() {
+  while [[ true ]]; do
+    showOptions
+    readOptions
+  done
+  #declare -a options=("setup raspberry pi" "install transmission" "install python 2" "install zsh shell" "move rootfs to external storage") exit
+  #IFS=$'\n'
+  #select option in options;
+  #do
+  #  echo "$option"
+  #done
+}
 
-# declare -a options=("setup raspberry pi" "install transmission" "install python 2" "install zsh shell" "move rootfs to external storage") exit
-# IFS=$'\n'
-# select option in options;
-# do
-#   echo "$option"
-# done
+main
