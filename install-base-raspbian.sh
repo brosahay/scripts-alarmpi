@@ -76,7 +76,12 @@ function configureHostname() {
 	read -p "Enter hostname(ex. alarmpi):" hostname
 	hostname=${hostname:=alarmpi}
 	sudo hostnamectl set-hostname $hostname
-  echo -e "127.0.0.1  $hostname" | sudo tee -a /etc/hosts 
+  echo -e "127.0.0.1  $hostname" | sudo tee -a /etc/hosts
+}
+
+function configureLocale() {
+  sudo locale-gen "en_US.UTF-8" > /dev/null
+  sudo dpkg-reconfigure locales
 }
 
 function configureNewUser() {
