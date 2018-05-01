@@ -170,7 +170,7 @@ function newRootfs() {
 	sudo mkfs.ext4 -L "armrootfs" ${newrootdevice}
 	echo -e "Mounting new root"
 	sudo mount ${newrootdevice} ${newroot}
-	sudo rsync -avxS exclude=${newroot} / ${newroot}
+	sudo rsync -avxS --exclude=${newroot} / ${newroot}
   echo -e "Finished copying root data"
   echo -e "Edit boot files to enable booting from harddrive"
 	sudo cp /boot/cmdline.txt /boot/cmdline.txt.bak
