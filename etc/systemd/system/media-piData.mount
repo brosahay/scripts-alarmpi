@@ -1,0 +1,8 @@
+[Unit]
+Description=xHD mount script
+
+[Mount]
+What=/dev/sda2
+Where=/media/piData
+Type=ntfs
+Options=uid=1000,gid=1000,dmask=027,fmask=137
