@@ -76,6 +76,7 @@ function configureHostname() {
 	read -p "Enter hostname(ex. alarmpi):" hostname
 	hostname=${hostname:=alarmpi}
 	sudo hostnamectl set-hostname $hostname
+  echo -e "127.0.0.1  $hostname" | sudo tee -a /etc/hosts 
 }
 
 function configureNewUser() {
