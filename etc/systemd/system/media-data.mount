@@ -3,6 +3,6 @@ Description=xHD mount script
 
 [Mount]
 What=/dev/sda2
-Where=/media/share
+Where=/media/data
 Type=ntfs
 Options=defaults,gid=users,dmask=002,fmask=002,noauto,nofail
