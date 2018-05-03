@@ -181,8 +181,8 @@ function newRootfs() {
   echo -e "Finished copying root data"
   echo -e "Edit boot files to enable booting from harddrive"
 	sudo cp /boot/cmdline.txt /boot/cmdline.txt.bak
-	sudo sed "s/root=\/dev\/mmcblk0p2/root=${newrootdevice}/" -i /boot/cmdline.txt
-	sudo sed 's/elevator=noop//' -i /boot/cmdline.txt
+	sudo sed "s#root=[^ ]*#root=${newrootdevice}#" -i /boot/cmdline.txt
+	sudo sed 's#elevator=[^ ]*##' -i /boot/cmdline.txt
   sudo sync
   echo -e "Unmounting new rootfs"
 	sudo umount ${newroot}
